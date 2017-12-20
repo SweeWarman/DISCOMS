@@ -77,7 +77,6 @@ ax.add_patch(agt1)
 ax.add_patch(agt2)
 ownship = agt1
 agt = [agt2]
-agt = []
 
 def init():
     return agt

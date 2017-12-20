@@ -31,7 +31,7 @@ class UAVAgent(threading.Thread):
         self.intersections = {}
         self.crossingTimes = {}
         self.vmax = 10
-        self.vmin = 5
+        self.vmin = 4
         self.xtrackdev = 20
         self.schedules = {}
         self.newSchedule = False
@@ -41,6 +41,7 @@ class UAVAgent(threading.Thread):
         self.vz0 = vz
         self.trajectory = []
         self.speed = np.sqrt(vx**2 + vy**2 + vz**2)
+        self.zone = 50
 
     def AddIntersections(self,id,x,y,z):
         self.intersections[id]= (x,y,z)
@@ -58,8 +59,15 @@ class UAVAgent(threading.Thread):
         self.threadLock.release()
 
     def UpdateTrafficState(self,msg):
-        print "Updating traffic info"
+
         traffic = {"id":msg.aircraftID,"pos":msg.position,"vel":msg.velocity}
+        position0 = (self.x,self.y,self.z)
+        position1 = msg.position
+        intID = self.intersections.keys()[0]
+        intersection = self.intersections[intID]
+        dist0 = self.ComputeDistance(position0,intersection)
+        dist1 = self.ComputeDistance(position1,intersection)
+
         if msg.aircraftID in self.trafficTraj.keys():
             self.trafficTraj[msg.aircraftID].append(msg.position)
         else:
@@ -78,6 +86,8 @@ class UAVAgent(threading.Thread):
             self.trajy.append(self.y)
             self.trajz.append(self.z)
 
+
+
     def ComputeDistance(self,A,B):
         return np.sqrt((A[0] -B[0])**2 + (A[1] -B[1])**2 + (A[2] -B[2])**2 )
 
@@ -88,14 +98,17 @@ class UAVAgent(threading.Thread):
         :return: [r,d] release time and deadline
         """
         nextIntersection = self.intersections[id]
-        mindist = self.ComputeDistance((self.x,self.y,self.z),nextIntersection)
-        hypo    = np.sqrt(mindist**2 + self.xtrackdev**2)
+        dist2zone = self.ComputeDistance((self.x,self.y,self.z),nextIntersection)
+        hypo    = np.sqrt(dist2zone**2 + self.xtrackdev**2)
         maxdist = self.xtrackdev + hypo
-        minT    = mindist/self.vmax
+        mindist = dist2zone
+        minT    = mindist/(self.vmax-2)
         maxT    = maxdist/self.vmin
         t       = time.time()
         release = minT+t
         deadline = maxT+t
+        print "Crossing Time:"
+        print minT,maxT,t,release,deadline
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
@@ -149,6 +162,8 @@ class UAVAgent(threading.Thread):
 
         T, sortedJ, status = PolynomialTime(acid, R, D)
 
+        print R,D,T
+
         if self.id not in self.schedules.keys():
             self.schedules[self.id] = {}
         for i,elem in enumerate(sortedJ):
@@ -175,7 +190,7 @@ class UAVAgent(threading.Thread):
 
         getV = lambda x: (x + np.sqrt(D**2 + x**2))/t
 
-        X = [i for i in np.arange(0,self.xtrackdev,5)]
+        X = [i for i in np.arange(0,self.xtrackdev+5,5)]
         v = 0
         for x in X:
             v = getV(x)
@@ -187,19 +202,23 @@ class UAVAgent(threading.Thread):
 
         return -1,-1
 
-    def ComputeTrajectory(self,T,id):
+    def ComputeTrajectory(self,id,T):
 
         A  = (self.x, self.y)
         B  = self.intersections[id]
         AB = (B[0] - A[0], B[1] - A[1])
         distAB = np.sqrt(AB[0] ** 2 + AB[1] ** 2)
-
+        print "Schedule T:" + str(T)
+        print "Current Time:" + str(time.time())
+        T = T - time.time()
         (x,s) = self.ComputeSpeed(distAB,T)
-        hypo = np.sqrt(distAB**2 + x**2)
-        fac = hypo/distAB
-        AC = [AB[1]*fac -AB[0]*fac]
-        C = (AC[0] + A[0],AC[1] + A[1])
+        print x,s
 
+        fac = x/distAB
+        AC = [AB[1]*fac,-AB[0]*fac]
+        C = (AC[0] + A[0],AC[1] + A[1],0)
+
+        print AC,C,B
         self.trajectory.append(C)
         self.trajectory.append(B)
         return s
@@ -234,9 +253,11 @@ class UAVAgent(threading.Thread):
         while self.status:
             t1 = time.time()
             if t1 - self.pt0 >= self.dt:
+                self.dt = t1 - self.pt0
                 self.pt0 = t1
                 self.FollowTrajectory(self.trajectory)
                 self.UpdateState()
+                self.dt = 0.1
 
             if t1 - self.bt0 > 0.5:
                 self.bt0 = t1
@@ -253,6 +274,6 @@ class UAVAgent(threading.Thread):
                 self.newSchedule = False
                 nextIntersection = self.intersections.keys()[0]
                 intersectionT = self.schedules[self.id][self.id]
-                self.ComputeTrajectory()
+                self.ComputeTrajectory(nextIntersection,intersectionT)
 
         print "Exiting thread"
