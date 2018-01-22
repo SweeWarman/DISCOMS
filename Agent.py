@@ -35,13 +35,17 @@ class UAVAgent(threading.Thread):
         self.xtrackdev = 20
         self.schedules = {}
         self.newSchedule = False
-        self.delta = 5;
+        self.delta = 5
         self.vx0 = vx
         self.vy0 = vy
         self.vz0 = vz
         self.trajectory = []
         self.speed = np.sqrt(vx**2 + vy**2 + vz**2)
         self.zone = 50
+        self.server = None
+
+    def SetServer(self,svr):
+        self.server = svr
 
     def AddIntersections(self,id,x,y,z):
         self.intersections[id]= (x,y,z)
@@ -86,8 +90,6 @@ class UAVAgent(threading.Thread):
             self.trajy.append(self.y)
             self.trajz.append(self.z)
 
-
-
     def ComputeDistance(self,A,B):
         return np.sqrt((A[0] -B[0])**2 + (A[1] -B[1])**2 + (A[2] -B[2])**2 )
 
@@ -126,7 +128,6 @@ class UAVAgent(threading.Thread):
             reply.deadline = self.crossingTimes[reqIntID][self.id][1]
             print "replying to request"
             self.lc.publish("JOB", reply.encode())
-
 
     def UpdateIntruderCrossingTime(self,msg):
         print "Updating intersection crossing times"
@@ -168,7 +169,6 @@ class UAVAgent(threading.Thread):
             self.schedules[self.id] = {}
         for i,elem in enumerate(sortedJ):
             self.schedules[self.id][elem[0]] = T[i]*self.delta
-
 
     def CollectThirdpartySchedules(self,msg):
         if msg.aircraftID not in self.schedules.keys():
@@ -248,7 +248,6 @@ class UAVAgent(threading.Thread):
         controlVec = (vec[0]*fac,vec[1]*fac,vec[2]*fac)
         self.UpdateControl(controlVec[0],controlVec[1],controlVec[2])
 
-
     def run(self):
         while self.status:
             t1 = time.time()
@@ -259,15 +258,31 @@ class UAVAgent(threading.Thread):
                 self.UpdateState()
                 self.dt = 0.1
 
-            if t1 - self.bt0 > 0.5:
-                self.bt0 = t1
-                self.BroadcastCurrentPosition()
+            # if crossing time not available previously, or if
+            # crossing times have changed from previous values,
+            # recompute and broadcast that information to the leader
+            nextin = self.GetNextIntersection()
 
-            for k in self.intersections.keys():
-                if k not in self.crossingTimes.keys():
-                    self.DetermineCrossingTime(k)
-                elif self.id not in self.crossingTimes[k].keys():
-                    self.DetermineCrossingTime(k)
+            if t1 - self.nt0 >= 1:
+                self.DetermineCrossingTime(nextin)
+                self.nt0 = t1
+                # determine crossing time every 1 second and
+                # broadcast to leader node.
+
+            # If command entry found in log, execute or:
+            entry = self.server.get_last_log_entry()
+
+            if entry["type"] == "Command":
+                log = self.server.get_log()
+                self.server.clear_log()
+
+
+            # After executing command, clear logs.
+
+            # if self node is leader
+            # Go through all the logs in the server and check if
+            # entries maintain separation distance. If entries don't
+            # require separation, send command to compute schedule.
 
             if self.newSchedule:
                 self.ComputeSchedule(0)
