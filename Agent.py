@@ -85,6 +85,13 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
+            req = xtimerequest_t()
+            req.fromAircraftID = self.id
+            req.toAircraftID   = msg.aircraftID
+            req.intersectionID = self.intersections.keys()[0]
+            print "requesting self crossing time"
+            self.lc.publish("REQUEST", req.encode())
+
         if self.log:
             self.trajx.append(self.x)
             self.trajy.append(self.y)
@@ -116,6 +123,17 @@ class UAVAgent(threading.Thread):
 
         self.crossingTimes[id][self.id] = [release, deadline]
 
+    def BroadcastCurrentPosition(self):
+        msg = acState_t()
+        msg.aircraftID  = self.id
+        msg.position[0] = self.x
+        msg.position[1] = self.y
+        msg.position[2] = self.z
+        msg.velocity[0] = self.vx
+        msg.velocity[1] = self.vy
+        msg.velocity[2] = self.vz
+        self.lc.publish("POSITION",msg.encode())
+
     def ComputeSchedule(self,id):
         print "Computing schedule"
         # ids of all aircraft attempting to cross intersection id
@@ -124,7 +142,7 @@ class UAVAgent(threading.Thread):
         D = []
         for e in acid:
             R.append(self.crossingTimes[id][e][0]/self.delta)
-            D.append(self.crossingTimes[id][e][1]/self.delta + 1)
+            D.append(self.crossingTimes[id][e][2]/self.delta + 1)
 
         T, sortedJ, status = PolynomialTime(acid, R, D)
 
