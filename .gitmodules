@@ -1,0 +1,3 @@
+[submodule "lcmraft"]
+	path = lcmraft
+	url = https://sweewarman@bitbucket.org/SweeResearch/lcmraft.git
