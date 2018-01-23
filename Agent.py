@@ -85,13 +85,6 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
-            req = xtimerequest_t()
-            req.fromAircraftID = self.id
-            req.toAircraftID   = msg.aircraftID
-            req.intersectionID = self.intersections.keys()[0]
-            print "requesting self crossing time"
-            self.lc.publish("REQUEST", req.encode())
-
         if self.log:
             self.trajx.append(self.x)
             self.trajy.append(self.y)
@@ -123,41 +116,6 @@ class UAVAgent(threading.Thread):
 
         self.crossingTimes[id][self.id] = [release, deadline]
 
-    def ProcessRequest(self,msg):
-
-        reqIntID = msg.intersectionID
-
-        if reqIntID in self.crossingTimes.keys():
-            reply = jobprop_t()
-            reply.aircraftID = self.id
-            reply.intersectionID = reqIntID
-            reply.release = self.crossingTimes[reqIntID][self.id][0]
-            reply.deadline = self.crossingTimes[reqIntID][self.id][1]
-            print "replying to request"
-            self.lc.publish("JOB", reply.encode())
-
-    def UpdateIntruderCrossingTime(self,msg):
-        print "Updating intersection crossing times"
-        if msg.intersectionID not in self.crossingTimes.keys():
-            self.crossingTimes[msg.intersectionID] = {}
-
-        if msg.aircraftID not in self.crossingTimes[msg.intersectionID].keys():
-            self.crossingTimes[msg.intersectionID][msg.aircraftID] = []
-
-        self.crossingTimes[msg.intersectionID][msg.aircraftID] = [msg.release,msg.deadline]
-        self.newSchedule = True
-
-    def BroadcastCurrentPosition(self):
-        msg = acState_t()
-        msg.aircraftID  = self.id
-        msg.position[0] = self.x
-        msg.position[1] = self.y
-        msg.position[2] = self.z
-        msg.velocity[0] = self.vx
-        msg.velocity[1] = self.vy
-        msg.velocity[2] = self.vz
-        self.lc.publish("POSITION",msg.encode())
-
     def ComputeSchedule(self,id):
         print "Computing schedule"
         # ids of all aircraft attempting to cross intersection id
@@ -176,13 +134,6 @@ class UAVAgent(threading.Thread):
             self.schedules[self.id] = {}
         for i,elem in enumerate(sortedJ):
             self.schedules[self.id][elem[0]] = T[i]*self.delta
-
-    def CollectThirdpartySchedules(self,msg):
-        if msg.aircraftID not in self.schedules.keys():
-            self.schedules[msg.aircraftID] = {}
-
-        for i in range(msg.numAircrafts):
-            self.schedules[msg.aircraftID][msg.ids[i]] = msg.T[i]
 
     def ComputeSpeed(self,D,t):
         """
