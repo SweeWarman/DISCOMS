@@ -3,8 +3,6 @@ import lcm
 import sys
 import time
 from msg import acState_t
-from msg import jobprop_t
-from msg import xtimerequest_t
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
@@ -13,22 +11,6 @@ def HandleTrafficPosition(channel,data):
     msg = acState_t.decode(data)
     if msg.aircraftID != UAV.id:
         UAV.UpdateTrafficState(msg)
-
-def HandleJobProperties(channel,data):
-    global UAV
-    msg = jobprop_t.decode(data)
-    if msg.aircraftID != UAV.id:
-        UAV.UpdateIntruderCrossingTime(msg)
-
-def HandleRequest(channel,data):
-    global UAV
-    msg = xtimerequest_t.decode(data)
-    if msg.toAircraftID == UAV.id:
-        UAV.ProcessRequest(msg)
-
-
-from PolynomialTime import PolynomialTime
-
 
 id = int(sys.argv[1])
 x = float(sys.argv[2])
@@ -40,8 +22,6 @@ vz = float(sys.argv[7])
 
 lc = lcm.LCM()
 subscription = lc.subscribe("POSITION",HandleTrafficPosition)
-subscription = lc.subscribe("JOB",HandleJobProperties)
-subscription = lc.subscribe("REQUEST",HandleRequest)
 
 if sys.argv[8] == "True":
     log = True
@@ -50,6 +30,7 @@ else:
 
 UAV = UAVAgent(id,x,y,z,vx,vy,vz,lc,log)
 UAV.AddIntersections(0,0,100,0)
+UAV.daemon = True
 UAV.start()
 
 t1 = time.time()
@@ -62,6 +43,7 @@ try:
     print "Exiting lcm wait loop"
 except KeyboardInterrupt:
     print "Exiting UAV thread"
+
 UAV.status = False
 UAV.join()
 print "Finished running program"

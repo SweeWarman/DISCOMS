@@ -255,6 +255,7 @@ class UAVAgent(threading.Thread):
                 self.FollowTrajectory(self.trajectory)
                 self.UpdateState()
                 self.dt = 0.1
+                self.BroadcastCurrentPosition()
 
             # if crossing time not available previously, or if
             # crossing times have changed from previous values,
