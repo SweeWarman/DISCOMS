@@ -4,6 +4,8 @@ from msg import acState_t
 from msg import jobprop_t
 from msg import xtimerequest_t
 from PolynomialTime import PolynomialTime
+from lcmraft.states.leader import Leader
+from lcmraft.states.state import EntryType
 import time
 
 class UAVAgent(threading.Thread):
@@ -43,6 +45,7 @@ class UAVAgent(threading.Thread):
         self.speed = np.sqrt(vx**2 + vy**2 + vz**2)
         self.zone = 50
         self.server = None
+        self.lastLogLength = 0
 
     def SetServer(self,svr):
         self.server = svr
@@ -269,23 +272,43 @@ class UAVAgent(threading.Thread):
                 # determine crossing time every 1 second and
                 # broadcast to leader node.
 
-            # If command entry found in log, execute or:
-            entry = self.server.get_last_log_entry()
-
-            if entry["type"] == "Command":
-                log = self.server.get_log()
-                self.server.clear_log()
-
-
-            # After executing command, clear logs.
-
             # if self node is leader
             # Go through all the logs in the server and check if
             # entries maintain separation distance. If entries don't
             # require separation, send command to compute schedule.
 
-            if self.newSchedule:
+            if type(self.server._state) is Leader:
+                log = self.server.get_log()
+
+                matches = 0
+                if len(log) > 0:
+                    for node in self.server._connectedServers:
+                        for entry in log:
+                            if node == entry["vehicleID"]:
+                                call_available = True
+                                matches += 1
+
+                if matches >= len(self.server._connectedServers) and len(log) != self.lastLogLength:
+                    val = self.CheckConflicts()
+
+                    if val is True:
+                        self.server._state.SendComputeCommand()
+                        self.lastLogLength = len(log)
+
+            # If command entry found in log, execute or:
+            entry = self.server.get_last_commited_log_entry()
+
+            if entry["type"] == EntryType.COMMAND.value():
+                log = self.server.get_log()
+                # After executing command, clear logs.
+                self.server.clear_log()
+
+                # Go through the log and extract [r,d] and current t information.
                 self.ComputeSchedule(0)
+                self.newSchedule = True
+                self.lastLogLength = 0
+
+            if self.newSchedule:
                 self.newSchedule = False
                 nextIntersection = self.intersections.keys()[0]
                 intersectionT = self.schedules[self.id][self.id]
