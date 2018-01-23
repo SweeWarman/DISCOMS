@@ -6,43 +6,28 @@ from msg import xtimerequest_t
 from PolynomialTime import PolynomialTime
 from lcmraft.states.leader import Leader
 from lcmraft.states.state import EntryType
+from Vehicle import Vehicle
 import time
 
 class UAVAgent(threading.Thread):
-    def __init__(self,id,x,y,z,vx,vy,vz,lc,log):
+    def __init__(self,id,position,velocity,lc,log):
         threading.Thread.__init__(self)
         self.threadLock = threading.Lock()
-        self.id = id
-        self.x = x
-        self.y = y
-        self.z = z
-        self.vx = vx
-        self.vy = vy
-        self.vz = vz
-        self.dt = 0.1
-        self.traffic = []
+        self.ownship = Vehicle(id,position,velocity)
         self.trafficTraj = {}
         self.lc = lc
         self.log = log
-        self.trajx = []
-        self.trajy = []
-        self.trajz = []
         self.pt0 = time.time()
         self.bt0 = time.time()
         self.status = True
         self.intersections = {}
         self.crossingTimes = {}
-        self.vmax = 10
-        self.vmin = 4
         self.xtrackdev = 20
         self.schedules = {}
         self.newSchedule = False
         self.delta = 5
-        self.vx0 = vx
-        self.vy0 = vy
-        self.vz0 = vz
         self.trajectory = []
-        self.speed = np.sqrt(vx**2 + vy**2 + vz**2)
+        self.speed = np.sqrt(self.ownship.vx**2 + self.ownship.vy**2 + self.ownship.vz**2)
         self.zone = 50
         self.server = None
         self.lastLogLength = 0
@@ -57,27 +42,7 @@ class UAVAgent(threading.Thread):
         _intersectionIDs = self.intersections.keys()
         return _intersectionIDs[0]
 
-    def UpdateState(self):
-        self.x = self.x + self.vx * self.dt
-        self.y = self.y + self.vy * self.dt
-        self.z = self.z + self.vz * self.dt
-
-    def UpdateControl(self,vx,vy,vz):
-        self.threadLock.acquire()
-        self.vx = vx
-        self.vy = vy
-        self.vz = vz
-        self.threadLock.release()
-
     def UpdateTrafficState(self,msg):
-
-        traffic = {"id":msg.aircraftID,"pos":msg.position,"vel":msg.velocity}
-        position0 = (self.x,self.y,self.z)
-        position1 = msg.position
-        intID = self.intersections.keys()[0]
-        intersection = self.intersections[intID]
-        dist0 = self.ComputeDistance(position0,intersection)
-        dist1 = self.ComputeDistance(position1,intersection)
 
         if msg.aircraftID in self.trafficTraj.keys():
             self.trafficTraj[msg.aircraftID].append(msg.position)
@@ -85,10 +50,7 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
-        if self.log:
-            self.trajx.append(self.x)
-            self.trajy.append(self.y)
-            self.trajz.append(self.z)
+        self.ownship.UpdateLog()
 
     def ComputeDistance(self,A,B):
         return np.sqrt((A[0] -B[0])**2 + (A[1] -B[1])**2 + (A[2] -B[2])**2 )
@@ -118,13 +80,13 @@ class UAVAgent(threading.Thread):
 
     def BroadcastCurrentPosition(self):
         msg = acState_t()
-        msg.aircraftID  = self.id
-        msg.position[0] = self.x
-        msg.position[1] = self.y
-        msg.position[2] = self.z
-        msg.velocity[0] = self.vx
-        msg.velocity[1] = self.vy
-        msg.velocity[2] = self.vz
+        msg.aircraftID  = self.ownship.id
+        msg.position[0] = self.ownship.x
+        msg.position[1] = self.ownship.y
+        msg.position[2] = self.ownship.z
+        msg.velocity[0] = self.ownship.vx
+        msg.velocity[1] = self.ownship.vy
+        msg.velocity[2] = self.ownship.vz
         self.lc.publish("POSITION",msg.encode())
 
     def ComputeSchedule(self,id):
@@ -163,7 +125,7 @@ class UAVAgent(threading.Thread):
         v = 0
         for x in X:
             v = getV(x)
-            if self.vmin <= v <= self.vmax:
+            if self.ownship.vmin <= v <= self.ownship.vmax:
                 self.speed = v
                 return x,v
             else:
@@ -194,12 +156,11 @@ class UAVAgent(threading.Thread):
 
     def FollowTrajectory(self,trajectory):
 
-        currentPos = (self.x,self.y,self.z)
+        currentPos = (self.ownship.x,self.ownship.y,self.ownship.z)
 
         if len(trajectory) > 0:
             nextPos = trajectory[0]
         else:
-            self.UpdateControl(self.vx0,self.vy0,self.vz0)
             return
 
         dist = self.ComputeDistance(currentPos,nextPos)
@@ -208,7 +169,6 @@ class UAVAgent(threading.Thread):
             if len(trajectory) > 0:
                 nextPos = trajectory[0]
             else:
-                self.UpdateControl(self.vx0, self.vy0, self.vz0)
                 return
 
         vec = (nextPos[0] - currentPos[0],nextPos[1] - currentPos[1],nextPos[2] - currentPos[2])
