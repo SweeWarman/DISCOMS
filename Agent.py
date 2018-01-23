@@ -85,13 +85,6 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
-            req = xtimerequest_t()
-            req.fromAircraftID = self.id
-            req.toAircraftID   = msg.aircraftID
-            req.intersectionID = self.intersections.keys()[0]
-            print "requesting self crossing time"
-            self.lc.publish("REQUEST", req.encode())
-
         if self.log:
             self.trajx.append(self.x)
             self.trajy.append(self.y)
