@@ -53,6 +53,10 @@ class UAVAgent(threading.Thread):
     def AddIntersections(self,id,x,y,z):
         self.intersections[id]= (x,y,z)
 
+    def GetNextIntersectionID(self):
+        _intersectionIDs = self.intersections.keys()
+        return _intersectionIDs[0]
+
     def UpdateState(self):
         self.x = self.x + self.vx * self.dt
         self.y = self.y + self.vy * self.dt
@@ -251,6 +255,28 @@ class UAVAgent(threading.Thread):
         controlVec = (vec[0]*fac,vec[1]*fac,vec[2]*fac)
         self.UpdateControl(controlVec[0],controlVec[1],controlVec[2])
 
+    def CheckConflicts(self,log,connectedServers):
+
+        entryTime = []
+        for element in log:
+            intersectionID = element["intersectionID"]
+            vehicleID = element["vehicleID"]
+            release = element["entryTime"]
+            deadline = element["exitTime"]
+            currentTime = element["crossingTime"]
+            entryTime.append(currentTime)
+            self.crossingTimes[intersectionID][vehicleID] = [release,currentTime,deadline]
+
+        entryTime.sort()
+
+        for i in range(1,len(entryTime)):
+            diff = entryTime[i] - entryTime[i-1]
+
+            if diff < self.minSeperation:
+                return True
+
+        return False
+
     def run(self):
         while self.status:
             t1 = time.time()
@@ -264,7 +290,7 @@ class UAVAgent(threading.Thread):
             # if crossing time not available previously, or if
             # crossing times have changed from previous values,
             # recompute and broadcast that information to the leader
-            nextin = self.GetNextIntersection()
+            nextin = self.GetNextIntersectionID()
 
             if t1 - self.nt0 >= 1:
                 self.DetermineCrossingTime(nextin)
@@ -285,11 +311,10 @@ class UAVAgent(threading.Thread):
                     for node in self.server._connectedServers:
                         for entry in log:
                             if node == entry["vehicleID"]:
-                                call_available = True
                                 matches += 1
 
                 if matches >= len(self.server._connectedServers) and len(log) != self.lastLogLength:
-                    val = self.CheckConflicts()
+                    val = self.CheckConflicts(log,self.server._connectedServers)
 
                     if val is True:
                         self.server._state.SendComputeCommand()
