@@ -2,35 +2,52 @@ from Agent import UAVAgent
 import lcm
 import sys
 import time
-from msg import acState_t
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from lcmraft.states.neutral import Neutral
+from lcmraft.servers.server import ServerDeamon
 
-def HandleTrafficPosition(channel,data):
-    global UAV
-    msg = acState_t.decode(data)
-    if msg.aircraftID != UAV.id:
-        UAV.UpdateTrafficState(msg)
+id  = sys.argv[1]
+x   = float(sys.argv[2])
+y   = float(sys.argv[3])
+z   = float(sys.argv[4])
+vx  = float(sys.argv[5])
+vy  = float(sys.argv[6])
+vz  = float(sys.argv[7])
+log = sys.argv[8]
 
-id = int(sys.argv[1])
-x = float(sys.argv[2])
-y = float(sys.argv[3])
-z = float(sys.argv[4])
-vx = float(sys.argv[5])
-vy = float(sys.argv[6])
-vz = float(sys.argv[7])
+_lcm = lcm.LCM()
 
-lc = lcm.LCM()
-subscription = lc.subscribe("POSITION",HandleTrafficPosition)
-
-if sys.argv[8] == "True":
-    log = True
-else:
-    log = False
-
-UAV = UAVAgent(id,x,y,z,vx,vy,vz,lc,log)
+UAV = UAVAgent(id,[x,y,z],[vx,vy,vz])
 UAV.AddIntersections(0,0,100,0)
 UAV.daemon = True
+
+state = Neutral()
+node = ServerDeamon(id,state,[],_lcm)
+node.daemon = True
+
+UAV.SetLcmHandle(_lcm)
+UAV.SetServer(node._server)
+
+_lcm_traffic_handler     = lambda channel,data:UAV.HandleTrafficPosition(channel,data)
+_lcm_heartbeat_handler   = lambda channel,data:node.HandleHeartBeat(channel,data)
+_lcm_appendentry_handler = lambda channel,data:node.HandleAppendEntries(channel,data)
+_lcm_requestvote_handler = lambda channel,data:node.HandleRequestVote(channel,data)
+_lcm_response_handler    = lambda channel,data:node.HandleResponse(channel,data)
+_lcm_voteresponse_handler= lambda channel,data:node.HandleVoteResponse(channel,data)
+_lcm_membership_handler  = lambda channel,data:node.HandleMemberShip(channel,data)
+_lcm_clientstatus_handler= lambda channel,data:node.HandleClientStatus(channel,data)
+
+_lcm.subscribe("POSITION",_lcm_traffic_handler)
+_lcm.subscribe("HEARTBEAT",_lcm_heartbeat_handler)
+_lcm.subscribe(id + "_APPEND_ENTRIES",_lcm_appendentry_handler)
+_lcm.subscribe(id + "_REQUEST_VOTE",_lcm_requestvote_handler)
+_lcm.subscribe(id + "_VOTE_RESPONSE",_lcm_voteresponse_handler)
+_lcm.subscribe(id + "_RESPONSE",_lcm_response_handler)
+_lcm.subscribe(id + "_MEMBERSHIP",_lcm_membership_handler)
+_lcm.subscribe(id + "_CLIENT_STATUS",_lcm_clientstatus_handler)
+
+node.start()
 UAV.start()
 
 t1 = time.time()
@@ -50,6 +67,8 @@ print "Finished running program"
 
 """
 Code for visualization
+"""
+
 """
 fig = plt.figure()
 ax  = plt.axes(xlim=(-200,200),ylim=(-200,200))
@@ -81,5 +100,5 @@ if log:
 
 
     plt.show()
-
+"""
 

@@ -1,8 +1,6 @@
 import numpy as np
 import threading
 from msg import acState_t
-from msg import jobprop_t
-from msg import xtimerequest_t
 from PolynomialTime import PolynomialTime
 from lcmraft.states.leader import Leader
 from lcmraft.states.state import EntryType
@@ -10,13 +8,13 @@ from Vehicle import Vehicle
 import time
 
 class UAVAgent(threading.Thread):
-    def __init__(self,id,position,velocity,lc,log):
+    def __init__(self,id,position,velocity):
         threading.Thread.__init__(self)
         self.threadLock = threading.Lock()
         self.ownship = Vehicle(id,position,velocity)
         self.trafficTraj = {}
-        self.lc = lc
-        self.log = log
+        self.lcm = None
+        self.log = None
         self.pt0 = time.time()
         self.bt0 = time.time()
         self.status = True
@@ -34,6 +32,9 @@ class UAVAgent(threading.Thread):
 
     def SetServer(self,svr):
         self.server = svr
+
+    def SetLcmHandle(self,lcm):
+        self.lcm = lcm
 
     def AddIntersections(self,id,x,y,z):
         self.intersections[id]= (x,y,z)
@@ -87,7 +88,10 @@ class UAVAgent(threading.Thread):
         msg.velocity[0] = self.ownship.vx
         msg.velocity[1] = self.ownship.vy
         msg.velocity[2] = self.ownship.vz
-        self.lc.publish("POSITION",msg.encode())
+
+        self.server.threadLock.acquire()
+        self.lcm.publish("POSITION",msg.encode())
+        self.server.threadLock.release()
 
     def ComputeSchedule(self,id):
         print "Computing schedule"
@@ -194,7 +198,7 @@ class UAVAgent(threading.Thread):
         for i in range(1,len(entryTime)):
             diff = entryTime[i] - entryTime[i-1]
 
-            if diff < self.minSeperation:
+            if diff < self.delta:
                 return True
 
         return False
@@ -206,7 +210,7 @@ class UAVAgent(threading.Thread):
                 self.dt = t1 - self.pt0
                 self.pt0 = t1
                 self.FollowTrajectory(self.trajectory)
-                self.UpdateState()
+                self.ownship.UpdateState()
                 self.dt = 0.1
                 self.BroadcastCurrentPosition()
 
@@ -263,3 +267,9 @@ class UAVAgent(threading.Thread):
                 self.ComputeTrajectory(nextIntersection,intersectionT)
 
         print "Exiting thread"
+
+    # LCM handlers:
+    def HandleTrafficPosition(self,channel, data):
+        msg = acState_t.decode(data)
+        if msg.aircraftID != self.ownship.id:
+            self.UpdateTrafficState(msg)
