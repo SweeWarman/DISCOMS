@@ -121,14 +121,20 @@ class UAVAgent(threading.Thread):
             R.append(self.crossingTimes[id][e][0]/self.delta)
             D.append(self.crossingTimes[id][e][2]/self.delta + 1)
 
-        T, sortedJ, status = PolynomialTime(acid, R, D)
+        #TODO: clean out this index manipulation
+        _airplaneIds = [int(val[7])-1 for val in acid]
+
+        T, sortedJ, status = PolynomialTime(_airplaneIds, R, D)
 
         print R,D,T
 
         if self.ownship.id not in self.schedules.keys():
             self.schedules[self.ownship.id] = {}
         for i,elem in enumerate(sortedJ):
-            self.schedules[self.ownship.id][elem[0]] = T[i]*self.delta
+            #TODO: clean out this index manipulation
+            index = elem[0] + 1
+            name  = "vehicle"+str(index)
+            self.schedules[self.ownship.id][name] = T[i]*self.delta
 
     def ComputeSpeed(self,D,t):
         """
@@ -256,6 +262,8 @@ class UAVAgent(threading.Thread):
             # entries maintain separation distance. If entries don't
             # require separation, send command to compute schedule.
 
+            entry = self.server.get_last_commited_log_entry()
+
             if type(self.server._state) is Leader:
                 log = self.server.get_log()
 
@@ -270,16 +278,22 @@ class UAVAgent(threading.Thread):
                 if matches >= len(self.server._connectedServers) and len(log) != self.lastLogLength:
                     val = self.CheckConflicts(log,self.server._connectedServers)
 
-                    if val is True:
+                    if val is True and entry["entryType"] != EntryType.COMMAND.value:
                         self.server._state.SendComputeCommand(0)
                         self.lastLogLength = len(log)
 
             # If command entry found in log, execute or:
-            entry = self.server.get_last_commited_log_entry()
-
             if (entry is not None):
                 if entry["entryType"] == EntryType.COMMAND.value:
-                    if self.server._commitIndex == len(self.server._log):
+                    executeCommand = False
+
+                    if type(self.server._state) is Leader:
+                        if self.server._commitIndex == len(self.server._log):
+                            executeCommand = True
+                    else:
+                        executeCommand = True
+
+                    if executeCommand:
                         print "executing command entry"
                         log = self.server.get_log()
                         # After executing command, clear logs.
