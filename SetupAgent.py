@@ -54,9 +54,9 @@ t1 = time.time()
 t2 = 0
 
 try:
-    while t2 - t1 < 20:
+    while True:
         t2 = time.time()
-        lc.handle()
+        _lcm.handle()
     print "Exiting lcm wait loop"
 except KeyboardInterrupt:
     print "Exiting UAV thread"
@@ -101,4 +101,3 @@ if log:
 
     plt.show()
 """
-

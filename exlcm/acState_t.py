@@ -14,7 +14,7 @@ class acState_t(object):
 
     def __init__(self):
         self.timestamp = 0
-        self.aircraftID = 0
+        self.aircraftID = ""
         self.position = [ 0.0 for dim0 in range(3) ]
         self.velocity = [ 0.0 for dim0 in range(3) ]
         self.orientation = [ 0.0 for dim0 in range(3) ]
@@ -27,7 +27,11 @@ class acState_t(object):
         return buf.getvalue()
 
     def _encode_one(self, buf):
-        buf.write(struct.pack(">qq", self.timestamp, self.aircraftID))
+        buf.write(struct.pack(">q", self.timestamp))
+        __aircraftID_encoded = self.aircraftID.encode('utf-8')
+        buf.write(struct.pack('>I', len(__aircraftID_encoded)+1))
+        buf.write(__aircraftID_encoded)
+        buf.write(b"\0")
         buf.write(struct.pack('>3d', *self.position[:3]))
         buf.write(struct.pack('>3d', *self.velocity[:3]))
         buf.write(struct.pack('>3d', *self.orientation[:3]))
@@ -45,7 +49,9 @@ class acState_t(object):
 
     def _decode_one(buf):
         self = acState_t()
-        self.timestamp, self.aircraftID = struct.unpack(">qq", buf.read(16))
+        self.timestamp = struct.unpack(">q", buf.read(8))[0]
+        __aircraftID_len = struct.unpack('>I', buf.read(4))[0]
+        self.aircraftID = buf.read(__aircraftID_len)[:-1].decode('utf-8', 'replace')
         self.position = struct.unpack('>3d', buf.read(24))
         self.velocity = struct.unpack('>3d', buf.read(24))
         self.orientation = struct.unpack('>3d', buf.read(24))
@@ -56,7 +62,7 @@ class acState_t(object):
     _hash = None
     def _get_hash_recursive(parents):
         if acState_t in parents: return 0
-        tmphash = (0x25e77f57c4a69160) & 0xffffffffffffffff
+        tmphash = (0xe747fc2b359af8c2) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff)  + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)

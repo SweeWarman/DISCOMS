@@ -1,6 +1,6 @@
 import numpy as np
 import threading
-from msg import acState_t
+from exlcm import acState_t
 from PolynomialTime import PolynomialTime
 from lcmraft.states.leader import Leader
 from lcmraft.states.state import EntryType
@@ -17,6 +17,7 @@ class UAVAgent(threading.Thread):
         self.log = None
         self.pt0 = time.time()
         self.bt0 = time.time()
+        self.nt0 = time.time()
         self.status = True
         self.intersections = {}
         self.crossingTimes = {}
@@ -63,21 +64,21 @@ class UAVAgent(threading.Thread):
         :return: [r,d] release time and deadline
         """
         nextIntersection = self.intersections[id]
-        dist2zone = self.ComputeDistance((self.x,self.y,self.z),nextIntersection)
+        dist2zone = self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),nextIntersection)
         hypo    = np.sqrt(dist2zone**2 + self.xtrackdev**2)
         maxdist = self.xtrackdev + hypo
         mindist = dist2zone
-        minT    = mindist/(self.vmax-2)
-        maxT    = maxdist/self.vmin
+        minT    = mindist/(self.ownship.vmax-2)
+        maxT    = maxdist/self.ownship.vmin
         t       = time.time()
         release = minT+t
         deadline = maxT+t
-        print "Crossing Time:"
-        print minT,maxT,t,release,deadline
+        #print "Crossing Time:"
+        #print minT,maxT,t,release,deadline
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
-        self.crossingTimes[id][self.id] = [release, deadline]
+        self.crossingTimes[id][self.ownship.id] = [release, deadline]
 
     def BroadcastCurrentPosition(self):
         msg = acState_t()
@@ -107,10 +108,10 @@ class UAVAgent(threading.Thread):
 
         print R,D,T
 
-        if self.id not in self.schedules.keys():
-            self.schedules[self.id] = {}
+        if self.ownship.id not in self.schedules.keys():
+            self.schedules[self.ownship.id] = {}
         for i,elem in enumerate(sortedJ):
-            self.schedules[self.id][elem[0]] = T[i]*self.delta
+            self.schedules[self.ownship.id][elem[0]] = T[i]*self.delta
 
     def ComputeSpeed(self,D,t):
         """
@@ -139,7 +140,7 @@ class UAVAgent(threading.Thread):
 
     def ComputeTrajectory(self,id,T):
 
-        A  = (self.x, self.y)
+        A  = (self.ownship.x, self.ownship.y)
         B  = self.intersections[id]
         AB = (B[0] - A[0], B[1] - A[1])
         distAB = np.sqrt(AB[0] ** 2 + AB[1] ** 2)
@@ -179,7 +180,7 @@ class UAVAgent(threading.Thread):
         normVec = np.sqrt(vec[0]**2 + vec[1]**2 + vec[2]**2)
         fac = self.speed/normVec
         controlVec = (vec[0]*fac,vec[1]*fac,vec[2]*fac)
-        self.UpdateControl(controlVec[0],controlVec[1],controlVec[2])
+        self.ownship.UpdateControl(controlVec[0],controlVec[1],controlVec[2])
 
     def CheckConflicts(self,log,connectedServers):
 
@@ -206,7 +207,7 @@ class UAVAgent(threading.Thread):
     def run(self):
         while self.status:
             t1 = time.time()
-            if t1 - self.pt0 >= self.dt:
+            if t1 - self.pt0 >= self.ownship.dt:
                 self.dt = t1 - self.pt0
                 self.pt0 = t1
                 self.FollowTrajectory(self.trajectory)
@@ -250,7 +251,7 @@ class UAVAgent(threading.Thread):
             # If command entry found in log, execute or:
             entry = self.server.get_last_commited_log_entry()
 
-            if entry["type"] == EntryType.COMMAND.value():
+            if (entry is not None) and entry["type"] == EntryType.COMMAND.value():
                 log = self.server.get_log()
                 # After executing command, clear logs.
                 self.server.clear_log()
@@ -263,7 +264,7 @@ class UAVAgent(threading.Thread):
             if self.newSchedule:
                 self.newSchedule = False
                 nextIntersection = self.intersections.keys()[0]
-                intersectionT = self.schedules[self.id][self.id]
+                intersectionT = self.schedules[self.ownship.id][self.ownship.id]
                 self.ComputeTrajectory(nextIntersection,intersectionT)
 
         print "Exiting thread"
