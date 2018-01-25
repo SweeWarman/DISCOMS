@@ -1,0 +1,11 @@
+package exlcm;
+
+struct jobprop_t
+{
+    int64_t timestamp;
+    string aircraftID;
+    int64_t intersectionID;
+    double entryTime;
+    double exitTime;
+    double crossingTime;
+}

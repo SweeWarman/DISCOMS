@@ -4,3 +4,4 @@ DO NOT MODIFY BY HAND!!!!
 """
 
 from .acState_t import acState_t
+from .jobprop_t import jobprop_t
