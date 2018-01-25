@@ -1,9 +1,10 @@
 import numpy as np
 import threading
-from exlcm import acState_t
+from exlcm import acState_t,jobprop_t
 from PolynomialTime import PolynomialTime
 from lcmraft.states.leader import Leader
 from lcmraft.states.state import EntryType
+from lcmraft.LcmRaftMessages import client_status_t
 from Vehicle import Vehicle
 import time
 
@@ -26,6 +27,7 @@ class UAVAgent(threading.Thread):
         self.newSchedule = False
         self.delta = 5
         self.trajectory = []
+        self.prevCrossingT = 0
         self.speed = np.sqrt(self.ownship.vx**2 + self.ownship.vy**2 + self.ownship.vz**2)
         self.zone = 50
         self.server = None
@@ -57,7 +59,7 @@ class UAVAgent(threading.Thread):
     def ComputeDistance(self,A,B):
         return np.sqrt((A[0] -B[0])**2 + (A[1] -B[1])**2 + (A[2] -B[2])**2 )
 
-    def DetermineCrossingTime(self,id):
+    def DetermineCrossingTime(self,id,t):
         """
         Determine crossing time to the next intersection
         :param intersection: [x,y,z] coordinates of intersection
@@ -66,19 +68,34 @@ class UAVAgent(threading.Thread):
         nextIntersection = self.intersections[id]
         dist2zone = self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),nextIntersection)
         hypo    = np.sqrt(dist2zone**2 + self.xtrackdev**2)
-        maxdist = self.xtrackdev + hypo
+        speed = np.sqrt(self.ownship.vx ** 2 + self.ownship.vy ** 2 + self.ownship.vz ** 2)
+        maxdist1 = 0
+        if len(self.trajectory) > 0:
+            for wp in self.trajectory:
+                maxdist1 += self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),wp)
+        else:
+            maxdist1 = dist2zone
+
+        maxdist2 = self.xtrackdev + hypo
+
         mindist = dist2zone
+        if abs(mindist - maxdist1) < 1e-1:
+            maxdist = maxdist2
+        else:
+            maxdist = maxdist1
+
         minT    = mindist/(self.ownship.vmax-2)
         maxT    = maxdist/self.ownship.vmin
-        t       = time.time()
         release = minT+t
         deadline = maxT+t
+        reach   = mindist/speed + t
         #print "Crossing Time:"
-        #print minT,maxT,t,release,deadline
+        #print minT,maxT,t,release,reach,deadline
+        #print mindist/speed,t,speed,self.ownship.x
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
-        self.crossingTimes[id][self.ownship.id] = [release, deadline]
+        self.crossingTimes[id][self.ownship.id] = [release, reach, deadline]
 
     def BroadcastCurrentPosition(self):
         msg = acState_t()
@@ -186,13 +203,14 @@ class UAVAgent(threading.Thread):
 
         entryTime = []
         for element in log:
-            intersectionID = element["intersectionID"]
-            vehicleID = element["vehicleID"]
-            release = element["entryTime"]
-            deadline = element["exitTime"]
-            currentTime = element["crossingTime"]
-            entryTime.append(currentTime)
-            self.crossingTimes[intersectionID][vehicleID] = [release,currentTime,deadline]
+            if element["entryType"] == EntryType.DATA.value:
+                intersectionID = element["intersectionID"]
+                vehicleID = element["vehicleID"]
+                release = element["entryTime"]
+                deadline = element["exitTime"]
+                currentTime = element["crossingTime"]
+                entryTime.append(currentTime)
+                self.crossingTimes[intersectionID][vehicleID] = [release,currentTime,deadline]
 
         entryTime.sort()
 
@@ -208,23 +226,30 @@ class UAVAgent(threading.Thread):
         while self.status:
             t1 = time.time()
             if t1 - self.pt0 >= self.ownship.dt:
-                self.dt = t1 - self.pt0
+                self.ownship.dt = t1 - self.pt0
                 self.pt0 = t1
                 self.FollowTrajectory(self.trajectory)
                 self.ownship.UpdateState()
-                self.dt = 0.1
+                self.ownship.dt = 0.1
                 self.BroadcastCurrentPosition()
 
-            # if crossing time not available previously, or if
-            # crossing times have changed from previous values,
-            # recompute and broadcast that information to the leader
-            nextin = self.GetNextIntersectionID()
+                # if crossing time not available previously, or if
+                # crossing times have changed from previous values,
+                # recompute and broadcast that information to the leader
+                nextin = self.GetNextIntersectionID()
+                self.DetermineCrossingTime(nextin,t1)
+                _xtime = self.crossingTimes[nextin][self.ownship.id][1]
+                if abs(self.prevCrossingT - _xtime) > 2:
+                    job = client_status_t()
+                    job.intersectionID = nextin
+                    job.entryTime = self.crossingTimes[nextin][self.ownship.id][0]
+                    job.exitTime = self.crossingTimes[nextin][self.ownship.id][2]
+                    job.crossingTime = _xtime
+                    job.vehicleID = self.ownship.id
 
-            if t1 - self.nt0 >= 1:
-                self.DetermineCrossingTime(nextin)
-                self.nt0 = t1
-                # determine crossing time every 1 second and
-                # broadcast to leader node.
+                    if self.server._leader is not None:
+                        self.lcm.publish("CLIENT_STATUS",job.encode())
+                        self.prevCrossingT = _xtime
 
             # if self node is leader
             # Go through all the logs in the server and check if
@@ -238,28 +263,32 @@ class UAVAgent(threading.Thread):
                 if len(log) > 0:
                     for node in self.server._connectedServers:
                         for entry in log:
-                            if node == entry["vehicleID"]:
-                                matches += 1
+                            if entry["entryType"] == EntryType.DATA.value:
+                                if node == entry["vehicleID"]:
+                                    matches += 1
 
                 if matches >= len(self.server._connectedServers) and len(log) != self.lastLogLength:
                     val = self.CheckConflicts(log,self.server._connectedServers)
 
                     if val is True:
-                        self.server._state.SendComputeCommand()
+                        self.server._state.SendComputeCommand(0)
                         self.lastLogLength = len(log)
 
             # If command entry found in log, execute or:
             entry = self.server.get_last_commited_log_entry()
 
-            if (entry is not None) and entry["type"] == EntryType.COMMAND.value():
-                log = self.server.get_log()
-                # After executing command, clear logs.
-                self.server.clear_log()
+            if (entry is not None):
+                if entry["entryType"] == EntryType.COMMAND.value:
+                    if self.server._commitIndex == len(self.server._log):
+                        print "executing command entry"
+                        log = self.server.get_log()
+                        # After executing command, clear logs.
+                        self.server.clear_log()
 
-                # Go through the log and extract [r,d] and current t information.
-                self.ComputeSchedule(0)
-                self.newSchedule = True
-                self.lastLogLength = 0
+                        # Go through the log and extract [r,d] and current t information.
+                        self.ComputeSchedule(0)
+                        self.newSchedule = True
+                        self.lastLogLength = 0
 
             if self.newSchedule:
                 self.newSchedule = False

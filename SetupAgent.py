@@ -19,7 +19,7 @@ log = sys.argv[8]
 _lcm = lcm.LCM()
 
 UAV = UAVAgent(id,[x,y,z],[vx,vy,vz])
-UAV.AddIntersections(0,0,100,0)
+UAV.AddIntersections(0,0,0,0)
 UAV.daemon = True
 
 state = Neutral()
@@ -40,12 +40,13 @@ _lcm_clientstatus_handler= lambda channel,data:node.HandleClientStatus(channel,d
 
 _lcm.subscribe("POSITION",_lcm_traffic_handler)
 _lcm.subscribe("HEARTBEAT",_lcm_heartbeat_handler)
+_lcm.subscribe("CLIENT_STATUS",_lcm_clientstatus_handler)
 _lcm.subscribe(id + "_APPEND_ENTRIES",_lcm_appendentry_handler)
 _lcm.subscribe(id + "_REQUEST_VOTE",_lcm_requestvote_handler)
 _lcm.subscribe(id + "_VOTE_RESPONSE",_lcm_voteresponse_handler)
 _lcm.subscribe(id + "_RESPONSE",_lcm_response_handler)
 _lcm.subscribe(id + "_MEMBERSHIP",_lcm_membership_handler)
-_lcm.subscribe(id + "_CLIENT_STATUS",_lcm_clientstatus_handler)
+
 
 node.start()
 UAV.start()
