@@ -98,7 +98,7 @@ class UAVAgent(threading.Thread):
         reach   = mindist/speed + t
         #print "Crossing Time:"
         #print minT,maxT,t,release,reach,deadline
-        #print mindist/speed,t,speed,self.ownship.x
+        print mindist
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
@@ -232,7 +232,7 @@ class UAVAgent(threading.Thread):
 
     def CheckConflicts(self,log,connectedServers):
 
-        entryTime = []
+        entryTime = {}
         for element in log:
             if element["entryType"] == EntryType.DATA.value:
                 intersectionID = element["intersectionID"]
@@ -240,13 +240,13 @@ class UAVAgent(threading.Thread):
                 release = element["entryTime"]
                 deadline = element["exitTime"]
                 currentTime = element["crossingTime"]
-                entryTime.append(currentTime)
+                entryTime[vehicleID] = currentTime
 
-        entryTime.sort()
-
-        for i in range(1,len(entryTime)):
-            diff = entryTime[i] - entryTime[i-1]
-
+        # Sort dictionary item based on time of entry
+        entryTime = sorted(entryTime.iteritems(),key=lambda (x,v):(v,x))
+        entryTimeList = [val[1] for val in entryTime]
+        for i in range(1,len(entryTimeList)):
+            diff = entryTimeList[i] - entryTimeList[i-1]
             # TODO: analyse interaction between separation distance and this conflict trigger
             if diff < self.delta*0.5:
                 return True
