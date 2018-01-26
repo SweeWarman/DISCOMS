@@ -32,6 +32,13 @@ class UAVAgent(threading.Thread):
         self.zone = 50
         self.server = None
         self.lastLogLength = 0
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
 
     def SetServer(self,svr):
         self.server = svr
@@ -229,7 +236,7 @@ class UAVAgent(threading.Thread):
         return False
 
     def run(self):
-        while self.status:
+        while not self.stopped():
             t1 = time.time()
             if t1 - self.pt0 >= self.ownship.dt:
                 self.ownship.dt = t1 - self.pt0

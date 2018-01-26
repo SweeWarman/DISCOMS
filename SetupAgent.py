@@ -55,15 +55,17 @@ t1 = time.time()
 t2 = 0
 
 try:
-    while True:
+    while abs(t2 - t1) > 30:
         t2 = time.time()
         _lcm.handle()
     print "Exiting lcm wait loop"
 except KeyboardInterrupt:
     print "Exiting UAV thread"
 
-UAV.status = False
+UAV.stop()
+node.stop()
 UAV.join()
+node.join()
 print "Finished running program"
 
 """
