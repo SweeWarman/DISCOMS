@@ -1,13 +1,10 @@
+import sys, time, lcm
 from Agent import UAVAgent
-import lcm
-import sys
-import time
-
 from lcmraft.states.neutral import Neutral
 from lcmraft.servers.server import ServerDeamon
-
 from Animation import AgentAnimation
 
+# Obtain command line arguments
 id  = sys.argv[1]
 x   = float(sys.argv[2])
 y   = float(sys.argv[3])
@@ -17,18 +14,24 @@ vy  = float(sys.argv[6])
 vz  = float(sys.argv[7])
 log = sys.argv[8]
 
+# Create lcm handle to publish/subscribe channels
 _lcm = lcm.LCM()
 
+# Instantiate an agent
 UAV = UAVAgent(id,[x,y,z],[vx,vy,vz])
+
+# Add an intersection for the agent
 UAV.AddIntersections(0,0,0,0)
 UAV.daemon = True
 
+# Instantiate RAFT server
 state = Neutral()
 node = ServerDeamon(id,state,[],_lcm)
 node.daemon = True
 
 UAV.SetLcmHandle(_lcm)
 UAV.SetServer(node._server)
+
 
 _lcm_traffic_handler     = lambda channel,data:UAV.HandleTrafficPosition(channel,data)
 _lcm_heartbeat_handler   = lambda channel,data:node.HandleHeartBeat(channel,data)
@@ -40,15 +43,15 @@ _lcm_membership_handler  = lambda channel,data:node.HandleMemberShip(channel,dat
 _lcm_clientstatus_handler= lambda channel,data:node.HandleClientStatus(channel,data)
 
 if log is "True":
-    _lcm.subscribe("POSITION",_lcm_traffic_handler)
-    
-_lcm.subscribe("HEARTBEAT",_lcm_heartbeat_handler)
-_lcm.subscribe("CLIENT_STATUS",_lcm_clientstatus_handler)
-_lcm.subscribe(id + "_APPEND_ENTRIES",_lcm_appendentry_handler)
-_lcm.subscribe(id + "_REQUEST_VOTE",_lcm_requestvote_handler)
-_lcm.subscribe(id + "_VOTE_RESPONSE",_lcm_voteresponse_handler)
-_lcm.subscribe(id + "_RESPONSE",_lcm_response_handler)
-_lcm.subscribe(id + "_MEMBERSHIP",_lcm_membership_handler)
+    _lcm.subscribe("POSITION",UAV.HandleTrafficPosition)
+
+_lcm.subscribe("HEARTBEAT",node.HandleHeartBeat)
+_lcm.subscribe("CLIENT_STATUS",node.HandleClientStatus)
+_lcm.subscribe(id + "_APPEND_ENTRIES",node.HandleAppendEntries)
+_lcm.subscribe(id + "_REQUEST_VOTE",node.HandleRequestVote)
+_lcm.subscribe(id + "_VOTE_RESPONSE",node.HandleVoteResponse)
+_lcm.subscribe(id + "_RESPONSE",node.HandleResponse)
+_lcm.subscribe(id + "_MEMBERSHIP",node.HandleMemberShip)
 
 
 node.start()
