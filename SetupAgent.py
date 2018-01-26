@@ -39,7 +39,9 @@ _lcm_voteresponse_handler= lambda channel,data:node.HandleVoteResponse(channel,d
 _lcm_membership_handler  = lambda channel,data:node.HandleMemberShip(channel,data)
 _lcm_clientstatus_handler= lambda channel,data:node.HandleClientStatus(channel,data)
 
-_lcm.subscribe("POSITION",_lcm_traffic_handler)
+if log is "True":
+    _lcm.subscribe("POSITION",_lcm_traffic_handler)
+    
 _lcm.subscribe("HEARTBEAT",_lcm_heartbeat_handler)
 _lcm.subscribe("CLIENT_STATUS",_lcm_clientstatus_handler)
 _lcm.subscribe(id + "_APPEND_ENTRIES",_lcm_appendentry_handler)
@@ -73,10 +75,10 @@ print "Finished running program"
 """
 Visualation of agents
 """
+if log is "True":
+    anim = AgentAnimation(-200,-200,200,200)
+    anim.AddAgent(2.5,'r')
+    anim.AddAgent(2.5,'b')
 
-anim = AgentAnimation(-200,-200,200,200)
-anim.AddAgent(2.5,'r')
-anim.AddAgent(2.5,'b')
-
-anim.AddData(UAV.trafficTraj)
-anim.run()
+    anim.AddData(UAV.trafficTraj)
+    anim.run()
