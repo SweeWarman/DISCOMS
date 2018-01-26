@@ -25,7 +25,7 @@ class UAVAgent(threading.Thread):
         self.xtrackdev = 20
         self.schedules = {}
         self.newSchedule = False
-        self.delta = 5
+        self.delta = 10
         self.trajectory = []
         self.prevCrossingT = 0
         self.speed = np.sqrt(self.ownship.vx**2 + self.ownship.vy**2 + self.ownship.vz**2)
@@ -102,7 +102,7 @@ class UAVAgent(threading.Thread):
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
-        self.crossingTimes[id][self.ownship.id] = [release, reach, deadline]
+        self.crossingTimes[id] = [release, reach, deadline]
 
     def BroadcastCurrentPosition(self):
         msg = acState_t()
@@ -118,15 +118,35 @@ class UAVAgent(threading.Thread):
         self.lcm.publish("POSITION",msg.encode())
         self.server.threadLock.release()
 
-    def ComputeSchedule(self,id):
+    def ComputeSchedule(self,log):
+        """
+        :param log: log from RAFT server containing job data
+        :return:  compute schedule for all aircraft in log data
+
+        A schedule is computed using the PolynomialTime algorithm
+        as described in "Efficient Algorithms for Collision Avoidance
+        at intersections", Colombo et al.
+        """
         print "Computing schedule"
+
+        _jobData = {}
+
+        for element in log:
+            if element["entryType"] == EntryType.DATA.value:
+                intersectionID = element["intersectionID"]
+                vehicleID = element["vehicleID"]
+                release = element["entryTime"]
+                deadline = element["exitTime"]
+                currentTime = element["crossingTime"]
+                _jobData[vehicleID] = [release,currentTime,deadline]
+
         # ids of all aircraft attempting to cross intersection id
-        acid = [i for i in self.crossingTimes[id].keys()]
+        acid = [i for i in _jobData.keys()]
         R = []
         D = []
         for e in acid:
-            R.append(self.crossingTimes[id][e][0]/self.delta)
-            D.append(self.crossingTimes[id][e][2]/self.delta + 1)
+            R.append(_jobData[e][0]/self.delta)
+            D.append(_jobData[e][2]/self.delta + 1)
 
         #TODO: clean out this index manipulation
         _airplaneIds = [int(val[7])-1 for val in acid]
@@ -135,13 +155,11 @@ class UAVAgent(threading.Thread):
 
         print R,D,T
 
-        if self.ownship.id not in self.schedules.keys():
-            self.schedules[self.ownship.id] = {}
         for i,elem in enumerate(sortedJ):
             #TODO: clean out this index manipulation
             index = elem[0] + 1
             name  = "vehicle"+str(index)
-            self.schedules[self.ownship.id][name] = T[i]*self.delta
+            self.schedules[name] = T[i]*self.delta
 
     def ComputeSpeed(self,D,t):
         """
@@ -223,14 +241,14 @@ class UAVAgent(threading.Thread):
                 deadline = element["exitTime"]
                 currentTime = element["crossingTime"]
                 entryTime.append(currentTime)
-                self.crossingTimes[intersectionID][vehicleID] = [release,currentTime,deadline]
 
         entryTime.sort()
 
         for i in range(1,len(entryTime)):
             diff = entryTime[i] - entryTime[i-1]
 
-            if diff < self.delta:
+            # TODO: analyse interaction between separation distance and this conflict trigger
+            if diff < self.delta*0.5:
                 return True
 
         return False
@@ -251,12 +269,12 @@ class UAVAgent(threading.Thread):
                 # recompute and broadcast that information to the leader
                 nextin = self.GetNextIntersectionID()
                 self.DetermineCrossingTime(nextin,t1)
-                _xtime = self.crossingTimes[nextin][self.ownship.id][1]
+                _xtime = self.crossingTimes[nextin][1]
                 if abs(self.prevCrossingT - _xtime) > 2:
                     job = client_status_t()
                     job.intersectionID = nextin
-                    job.entryTime = self.crossingTimes[nextin][self.ownship.id][0]
-                    job.exitTime = self.crossingTimes[nextin][self.ownship.id][2]
+                    job.entryTime = self.crossingTimes[nextin][0]
+                    job.exitTime = self.crossingTimes[nextin][2]
                     job.crossingTime = _xtime
                     job.vehicleID = self.ownship.id
 
@@ -307,14 +325,14 @@ class UAVAgent(threading.Thread):
                         self.server.clear_log()
 
                         # Go through the log and extract [r,d] and current t information.
-                        self.ComputeSchedule(0)
+                        self.ComputeSchedule(log)
                         self.newSchedule = True
                         self.lastLogLength = 0
 
             if self.newSchedule:
                 self.newSchedule = False
                 nextIntersection = self.intersections.keys()[0]
-                intersectionT = self.schedules[self.ownship.id][self.ownship.id]
+                intersectionT = self.schedules[self.ownship.id]
                 self.ComputeTrajectory(nextIntersection,intersectionT)
 
         print "Exiting thread"

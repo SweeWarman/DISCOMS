@@ -29,20 +29,14 @@ state = Neutral()
 node = ServerDeamon(id,state,[],_lcm)
 node.daemon = True
 
+# Provide the lcm hander to the UAV to publish relevant topics
 UAV.SetLcmHandle(_lcm)
+
+# Provide the RAFT server to the UAV to send updates to the RAFT leader
 UAV.SetServer(node._server)
 
-
-_lcm_traffic_handler     = lambda channel,data:UAV.HandleTrafficPosition(channel,data)
-_lcm_heartbeat_handler   = lambda channel,data:node.HandleHeartBeat(channel,data)
-_lcm_appendentry_handler = lambda channel,data:node.HandleAppendEntries(channel,data)
-_lcm_requestvote_handler = lambda channel,data:node.HandleRequestVote(channel,data)
-_lcm_response_handler    = lambda channel,data:node.HandleResponse(channel,data)
-_lcm_voteresponse_handler= lambda channel,data:node.HandleVoteResponse(channel,data)
-_lcm_membership_handler  = lambda channel,data:node.HandleMemberShip(channel,data)
-_lcm_clientstatus_handler= lambda channel,data:node.HandleClientStatus(channel,data)
-
-if log is "True":
+# Subscribe to the relevant LCM channels
+if log == "True":
     _lcm.subscribe("POSITION",UAV.HandleTrafficPosition)
 
 _lcm.subscribe("HEARTBEAT",node.HandleHeartBeat)
@@ -53,32 +47,38 @@ _lcm.subscribe(id + "_VOTE_RESPONSE",node.HandleVoteResponse)
 _lcm.subscribe(id + "_RESPONSE",node.HandleResponse)
 _lcm.subscribe(id + "_MEMBERSHIP",node.HandleMemberShip)
 
-
+# Start the RAFT server thread
 node.start()
+
+# Launch the UAV
 UAV.start()
 
-t1 = time.time()
-t2 = 0
+# Run the UAV only for a specified duration
 
+duration = 30
+t1 = time.time()
+t2 = time.time()
 try:
-    while abs(t2 - t1) > 30:
+    while abs(t2 - t1) < duration:
         t2 = time.time()
         _lcm.handle()
     print "Exiting lcm wait loop"
 except KeyboardInterrupt:
     print "Exiting UAV thread"
 
+# Terminate the UAV and RAFT server threads
 UAV.stop()
 node.stop()
 UAV.join()
 node.join()
 print "Finished running program"
 
-
+# Visualize results
 """
 Visualation of agents
 """
-if log is "True":
+if log == "True":
+    print "Starting animation"
     anim = AgentAnimation(-200,-200,200,200)
     anim.AddAgent(2.5,'r')
     anim.AddAgent(2.5,'b')

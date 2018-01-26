@@ -28,7 +28,7 @@ class Vehicle:
         self.traj.append(position)
 
         if self.id in log.keys():
-            log[id].append(position)
+            log[self.id].append(position)
         else:
-            log[id] = []
-            log[id].append(position)
+            log[self.id] = []
+            log[self.id].append(position)
