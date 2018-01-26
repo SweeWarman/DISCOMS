@@ -23,6 +23,12 @@ class Vehicle:
         self.vy = vy
         self.vz = vz
 
-    def UpdateLog(self):
+    def UpdateLog(self,log):
         position = (self.x,self.y,self.z)
         self.traj.append(position)
+
+        if self.id in log.keys():
+            log[id].append(position)
+        else:
+            log[id] = []
+            log[id].append(position)

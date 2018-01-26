@@ -2,10 +2,11 @@ from Agent import UAVAgent
 import lcm
 import sys
 import time
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+
 from lcmraft.states.neutral import Neutral
 from lcmraft.servers.server import ServerDeamon
+
+from Animation import AgentAnimation
 
 id  = sys.argv[1]
 x   = float(sys.argv[2])
@@ -68,39 +69,14 @@ UAV.join()
 node.join()
 print "Finished running program"
 
-"""
-Code for visualization
-"""
 
 """
-fig = plt.figure()
-ax  = plt.axes(xlim=(-200,200),ylim=(-200,200))
-agt1 = plt.Circle((0.0,0.0),radius = 2.5,fc='b')
-agt2 = plt.Circle((10.0,25.0),radius = 2.5,fc='r')
-ax.add_patch(agt1)
-ax.add_patch(agt2)
-ownship = agt1
-agt = [agt2]
-
-def init():
-    return agt
-
-def animate(i):
-    if i < len(UAV.trajx):
-        traj = [UAV.trajx[i], UAV.trajy[i]]
-        ownship.center = (traj[0],traj[1])
-        for j,vehicle in enumerate(agt):
-            id = j + 1
-            vehicle.center = (UAV.trafficTraj[id][i][0],UAV.trafficTraj[id][i][1])
-    return agt
-
-if log:
-    anim = animation.FuncAnimation(fig, animate,
-                                   init_func=init,
-                                   frames=1000,
-                                   interval=150,
-                                   blit=False)
-
-
-    plt.show()
+Visualation of agents
 """
+
+anim = AgentAnimation(-200,-200,200,200)
+anim.AddAgent(2.5,'r')
+anim.AddAgent(2.5,'b')
+
+anim.AddData(UAV.trafficTraj)
+anim.run()
