@@ -254,7 +254,7 @@ class UAVAgent(threading.Thread):
         return False
 
     def run(self):
-        while not self.stopped():
+        while not self.stopped() and not self._server._shutdown:
             t1 = time.time()
             if t1 - self.pt0 >= self.ownship.dt:
                 self.ownship.dt = t1 - self.pt0
