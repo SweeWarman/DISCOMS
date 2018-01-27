@@ -4,7 +4,7 @@ from exlcm import acState_t,jobprop_t
 from PolynomialTime import PolynomialTime
 from lcmraft.states.leader import Leader
 from lcmraft.states.state import EntryType
-from lcmraft.LcmRaftMessages import client_status_t
+from lcmraft.LcmRaftMessages import client_status_t,request_membership_t
 from Vehicle import Vehicle
 import time
 
@@ -32,6 +32,7 @@ class UAVAgent(threading.Thread):
         self.zone = 50
         self.server = None
         self.lastLogLength = 0
+        self.shutdownSent = False
         self._stop_event = threading.Event()
 
     def stop(self):
@@ -72,11 +73,23 @@ class UAVAgent(threading.Thread):
         :param intersection: [x,y,z] coordinates of intersection
         :return: [r,d] release time and deadline
         """
+
         nextIntersection = self.intersections[id]
         dist2zone = self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),nextIntersection)
         hypo    = np.sqrt(dist2zone**2 + self.xtrackdev**2)
         speed = np.sqrt(self.ownship.vx ** 2 + self.ownship.vy ** 2 + self.ownship.vz ** 2)
         maxdist1 = 0
+
+        A = (self.ownship.x, self.ownship.y)
+        B = nextIntersection
+        AB = (B[0] - A[0], B[1] - A[1])
+        Vel2 = (self.ownship.vx,self.ownship.vy)
+        proj = AB[0]*Vel2[0] + AB[1]*Vel2[1]
+
+        if proj <= 0:
+            return False
+
+
         if len(self.trajectory) > 0:
             for wp in self.trajectory:
                 maxdist1 += self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),wp)
@@ -103,6 +116,8 @@ class UAVAgent(threading.Thread):
             self.crossingTimes[id] = {}
 
         self.crossingTimes[id] = [release, reach, deadline]
+
+        return True
 
     def BroadcastCurrentPosition(self):
         msg = acState_t()
@@ -254,7 +269,7 @@ class UAVAgent(threading.Thread):
         return False
 
     def run(self):
-        while not self.stopped() and not self._server._shutdown:
+        while not self.stopped() and not self.server._shutdown:
             t1 = time.time()
             if t1 - self.pt0 >= self.ownship.dt:
                 self.ownship.dt = t1 - self.pt0
@@ -268,7 +283,18 @@ class UAVAgent(threading.Thread):
                 # crossing times have changed from previous values,
                 # recompute and broadcast that information to the leader
                 nextin = self.GetNextIntersectionID()
-                self.DetermineCrossingTime(nextin,t1)
+                status = self.DetermineCrossingTime(nextin,t1)
+
+                if status == False:
+                    if not self.shutdownSent:
+                        self.shutdownSent = True
+                        request = request_membership_t()
+                        request.sender = self.server._name
+                        request.receiver = self.server._leader
+                        request.request = False
+                        self.server.send_message(request)
+                    continue
+
                 _xtime = self.crossingTimes[nextin][1]
                 if abs(self.prevCrossingT - _xtime) > 2:
                     job = client_status_t()
