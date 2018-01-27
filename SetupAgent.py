@@ -61,7 +61,7 @@ t2 = time.time()
 try:
     while abs(t2 - t1) < duration:
         t2 = time.time()
-        _lcm.handle()
+        _lcm.handle_timeout(100)
     print "Exiting lcm wait loop"
 except KeyboardInterrupt:
     print "Exiting UAV thread"

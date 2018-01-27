@@ -3,6 +3,7 @@ import threading
 from exlcm import acState_t,jobprop_t
 from PolynomialTime import PolynomialTime
 from lcmraft.states.leader import Leader
+from lcmraft.states.follower import Follower
 from lcmraft.states.state import EntryType
 from lcmraft.LcmRaftMessages import client_status_t,request_membership_t
 from Vehicle import Vehicle
@@ -111,7 +112,7 @@ class UAVAgent(threading.Thread):
         reach   = mindist/speed + t
         #print "Crossing Time:"
         #print minT,maxT,t,release,reach,deadline
-        print mindist
+        #print mindist
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
@@ -269,7 +270,7 @@ class UAVAgent(threading.Thread):
         return False
 
     def run(self):
-        while not self.stopped() and not self.server._shutdown:
+        while not self.stopped():
             t1 = time.time()
             if t1 - self.pt0 >= self.ownship.dt:
                 self.ownship.dt = t1 - self.pt0
@@ -278,6 +279,9 @@ class UAVAgent(threading.Thread):
                 self.ownship.UpdateState()
                 self.ownship.dt = 0.1
                 self.BroadcastCurrentPosition()
+
+                if self.server._shutdown:
+                    continue
 
                 # if crossing time not available previously, or if
                 # crossing times have changed from previous values,
@@ -288,11 +292,16 @@ class UAVAgent(threading.Thread):
                 if status == False:
                     if not self.shutdownSent:
                         self.shutdownSent = True
-                        request = request_membership_t()
-                        request.sender = self.server._name
-                        request.receiver = self.server._leader
-                        request.request = False
-                        self.server.send_message(request)
+                        if self.server._leader is not None:
+                            request = request_membership_t()
+                            request.sender = self.server._name
+                            request.receiver = self.server._leader
+                            request.request = False
+                            self.server.send_message(request)
+                            print "sent shutdown request"
+                            if type(self.server._state) is Follower:
+                                print "expective response from leader"
+                                self.server._expectResponse = True
                     continue
 
                 _xtime = self.crossingTimes[nextin][1]
