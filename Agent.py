@@ -23,7 +23,7 @@ class UAVAgent(threading.Thread):
         self.status = True
         self.intersections = {}
         self.crossingTimes = {}
-        self.xtrackdev = 20
+        self.xtrackdev = 40
         self.schedules = {}
         self.newSchedule = False
         self.delta = 10
@@ -35,6 +35,7 @@ class UAVAgent(threading.Thread):
         self.lastLogLength = 0
         self.shutdownSent = False
         self._stop_event = threading.Event()
+        #TODO: analyze relation between vmin,vmax,xtracdev
 
     def stop(self):
         self._stop_event.set()
@@ -368,7 +369,7 @@ class UAVAgent(threading.Thread):
                 self.newSchedule = False
                 nextIntersection = self.intersections.keys()[0]
                 intersectionT = self.schedules[self.ownship.id]
-                self.ComputeTrajectory(nextIntersection,intersectionT)
+                self.speed = self.ComputeTrajectory(nextIntersection,intersectionT)
 
         print "Exiting thread"
 

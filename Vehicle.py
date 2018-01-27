@@ -10,7 +10,7 @@ class Vehicle:
         self.vz = velocity[2]
         self.traj = []
         self.vmax = 10
-        self.vmin = 4
+        self.vmin = 6
         self.dt = 0.1
 
     def UpdateState(self):
