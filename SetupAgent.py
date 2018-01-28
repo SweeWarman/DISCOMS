@@ -55,7 +55,7 @@ UAV.start()
 
 # Run the UAV only for a specified duration
 
-duration = 30
+duration = 45
 t1 = time.time()
 t2 = time.time()
 try:
@@ -82,6 +82,7 @@ if log == "True":
     anim = AgentAnimation(-200,-200,200,200)
     anim.AddAgent(2.5,'r')
     anim.AddAgent(2.5,'b')
+    anim.AddAgent(2.5,'g')
 
     anim.AddData(UAV.trafficTraj)
     anim.run()
