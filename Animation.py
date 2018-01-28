@@ -15,12 +15,14 @@ class AgentAnimation():
 
     def AddData(self,data):
         self.data = data
+        self.lengths = [len(entry) for entry in self.data.values()]
+        self.minlen = min(self.lengths)
 
     def init(self):
         return self.agents
 
     def animate(self,i):
-        if i < len(self.data.values()[0]):
+        if i < self.minlen:
             for j, vehicle in enumerate(self.agents):
                 id = "vehicle" + str(j+1)
                 vehicle.center = (self.data[id][i][0], self.data[id][i][1])
