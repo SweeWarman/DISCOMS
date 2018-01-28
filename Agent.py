@@ -270,6 +270,17 @@ class UAVAgent(threading.Thread):
 
         return False
 
+    def GetPrevCrossingTimeFromLog(self):
+        log = self.server.get_log()
+
+        if len(log) > 0:
+            for element in log:
+                if element["entryType"] == EntryType.DATA.value and element["vehicleID"] == self.server._name:
+                    return element["crossingTime"]
+
+        return 0
+
+
     def run(self):
         while not self.stopped():
             t1 = time.time()
@@ -306,7 +317,8 @@ class UAVAgent(threading.Thread):
                     continue
 
                 _xtime = self.crossingTimes[nextin][1]
-                if abs(self.prevCrossingT - _xtime) > 2:
+                prevCrossingT = self.GetPrevCrossingTimeFromLog()
+                if abs(prevCrossingT - _xtime) > 2:
                     job = client_status_t()
                     job.intersectionID = nextin
                     job.entryTime = self.crossingTimes[nextin][0]
@@ -316,7 +328,7 @@ class UAVAgent(threading.Thread):
 
                     if self.server._leader is not None:
                         self.lcm.publish("CLIENT_STATUS",job.encode())
-                        self.prevCrossingT = _xtime
+
 
             # if self node is leader
             # Go through all the logs in the server and check if
