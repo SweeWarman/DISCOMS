@@ -35,6 +35,8 @@ class UAVAgent(threading.Thread):
         self.lastLogLength = 0
         self.shutdownSent = False
         self._stop_event = threading.Event()
+        self.lastProcessedIndex = 0
+        self.computeSent = False
         #TODO: analyze relation between vmin,vmax,xtracdev
 
     def stop(self):
@@ -88,7 +90,8 @@ class UAVAgent(threading.Thread):
         Vel2 = (self.ownship.vx,self.ownship.vy)
         proj = AB[0]*Vel2[0] + AB[1]*Vel2[1]
 
-        if proj <= 0:
+        if proj < 0 and dist2zone < 10:
+            #print A
             return False
 
 
@@ -148,14 +151,36 @@ class UAVAgent(threading.Thread):
 
         _jobData = {}
 
-        for element in log:
-            if element["entryType"] == EntryType.DATA.value:
+        count = 1
+        computeSchedule = False
+        while(count <= len(log)):
+            element = log[-count]
+            count += 1
+            if element["entryType"] == EntryType.COMMAND.value and count > 2:
+                count = len(log) + 1
+                continue
+            elif element["entryType"] == EntryType.DATA.value:
                 intersectionID = element["intersectionID"]
                 vehicleID = element["vehicleID"]
                 release = element["entryTime"]
                 deadline = element["exitTime"]
                 currentTime = element["crossingTime"]
-                _jobData[vehicleID] = [release,currentTime,deadline]
+                _jobData[vehicleID] = [release, currentTime, deadline]
+                if vehicleID == self.server._name:
+                    computeSchedule = True
+
+        if not computeSchedule:
+            print "Ownship not found in log"
+            return False
+
+        # for element in log:
+        #     if element["entryType"] == EntryType.DATA.value:
+        #         intersectionID = element["intersectionID"]
+        #         vehicleID = element["vehicleID"]
+        #         release = element["entryTime"]
+        #         deadline = element["exitTime"]
+        #         currentTime = element["crossingTime"]
+        #         _jobData[vehicleID] = [release,currentTime,deadline]
 
         # ids of all aircraft attempting to cross intersection id
         acid = [i for i in _jobData.keys()]
@@ -177,6 +202,8 @@ class UAVAgent(threading.Thread):
             index = elem[0] + 1
             name  = "vehicle"+str(index)
             self.schedules[name] = T[i]*self.delta
+
+        return True
 
     def ComputeSpeed(self,D,t):
         """
@@ -250,14 +277,32 @@ class UAVAgent(threading.Thread):
     def CheckConflicts(self,log,connectedServers):
 
         entryTime = {}
-        for element in log:
-            if element["entryType"] == EntryType.DATA.value:
+        count = 1
+        while (count <= len(log)):
+            element = log[-count]
+            count += 1
+            if element["entryType"] == EntryType.COMMAND.value and count >= 2:
+                count = len(log) + 1
+                continue
+            elif element["entryType"] == EntryType.DATA.value:
                 intersectionID = element["intersectionID"]
                 vehicleID = element["vehicleID"]
                 release = element["entryTime"]
                 deadline = element["exitTime"]
                 currentTime = element["crossingTime"]
                 entryTime[vehicleID] = currentTime
+
+        # for element in log:
+        #     if element["entryType"] == EntryType.DATA.value:
+        #         intersectionID = element["intersectionID"]
+        #         vehicleID = element["vehicleID"]
+        #         release = element["entryTime"]
+        #         deadline = element["exitTime"]
+        #         currentTime = element["crossingTime"]
+        #         entryTime[vehicleID] = currentTime
+        if len(entryTime.keys()) < len(connectedServers):
+            # Not account for conflicts if all data is not available
+            return False
 
         # Sort dictionary item based on time of entry
         entryTime = sorted(entryTime.iteritems(),key=lambda (x,v):(v,x))
@@ -272,9 +317,12 @@ class UAVAgent(threading.Thread):
 
     def GetPrevCrossingTimeFromLog(self):
         log = self.server.get_log()
-
+        log.reverse()
         if len(log) > 0:
-            for element in log:
+            for i,element in enumerate(log):
+                if element["entryType"] == EntryType.COMMAND.value and i > 0:
+                    #print "couldn't find previous crossing time"
+                    return 0
                 if element["entryType"] == EntryType.DATA.value and element["vehicleID"] == self.server._name:
                     return element["crossingTime"]
 
@@ -334,48 +382,43 @@ class UAVAgent(threading.Thread):
             # Go through all the logs in the server and check if
             # entries maintain separation distance. If entries don't
             # require separation, send command to compute schedule.
-
-            entry = self.server.get_last_commited_log_entry()
-
+            log = self.server.get_log()
             if type(self.server._state) is Leader:
                 log = self.server.get_log()
+                commitedlog = log[:self.server._commitIndex]
+                val = self.CheckConflicts(commitedlog,self.server._connectedServers)
+                if val is True and not self.computeSent:
+                    self.server._state.SendComputeCommand(0)
+                    self.computeSent = True
 
-                matches = 0
-                if len(log) > 0:
-                    for node in self.server._connectedServers:
-                        for entry in log:
-                            if entry["entryType"] == EntryType.DATA.value:
-                                if node == entry["vehicleID"]:
-                                    matches += 1
+            N = 0
+            if type(self.server._state) is Leader:
+                N = self.server._commitIndex
+            else:
+                N = len(log)
 
-                if matches >= len(self.server._connectedServers) and len(log) != self.lastLogLength:
-                    val = self.CheckConflicts(log,self.server._connectedServers)
+            executeCommand = False
+            entry = None
+            for i in range(self.lastProcessedIndex,N):
+                if N > 0:
+                    nextIndex2Process = self.lastProcessedIndex + 1
+                    self.lastProcessedIndex = nextIndex2Process
+                    entry = log[nextIndex2Process - 1]
 
-                    if val is True and entry["entryType"] != EntryType.COMMAND.value:
-                        self.server._state.SendComputeCommand(0)
-                        self.lastLogLength = len(log)
-
-            # If command entry found in log, execute or:
-            if (entry is not None):
-                if entry["entryType"] == EntryType.COMMAND.value:
-                    executeCommand = False
-
-                    if type(self.server._state) is Leader:
-                        if self.server._commitIndex == len(self.server._log):
-                            executeCommand = True
-                    else:
+                    if entry["entryType"] == EntryType.COMMAND.value:
                         executeCommand = True
+                        self.computeSent = False
+                        break
 
-                    if executeCommand:
-                        print "executing command entry"
-                        log = self.server.get_log()
-                        # After executing command, clear logs.
-                        self.server.clear_log()
+            if executeCommand:
+                print entry
+                print "executing command entry"
+                # After executing command, clear logs.
+                #self.server.clear_log()
 
-                        # Go through the log and extract [r,d] and current t information.
-                        self.ComputeSchedule(log)
-                        self.newSchedule = True
-                        self.lastLogLength = 0
+                # Go through the log and extract [r,d] and current t information.
+                self.newSchedule = self.ComputeSchedule(log)
+                self.lastLogLength = 0
 
             if self.newSchedule:
                 self.newSchedule = False
