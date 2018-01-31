@@ -32,10 +32,11 @@ def LeastDeadlineAtT(Jobs,t,ScheduledJobs):
 
     return []
 
-def PolynomialTime(id,R,D):
+def PolynomialTime(R,D):
     n = len(R)
     F = []
     c = []
+    id = [i for i in range(n)]
     J = zip(id,R,D)
     sortedJ = sorted(J,key=lambda x:x[1])
     id,R,D = zip(*sortedJ)

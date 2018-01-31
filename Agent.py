@@ -37,6 +37,7 @@ class UAVAgent(threading.Thread):
         self._stop_event = threading.Event()
         self.lastProcessedIndex = 0
         self.computeSent = False
+        self.offsetSign = 1
         #TODO: analyze relation between vmin,vmax,xtracdev
 
     def stop(self):
@@ -66,7 +67,8 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
-        self.ownship.UpdateLog(self.trafficTraj)
+        if msg.aircraftID == "vehicle2":
+            self.ownship.UpdateLog(self.trafficTraj)
 
     def ComputeDistance(self,A,B):
         return np.sqrt((A[0] -B[0])**2 + (A[1] -B[1])**2 + (A[2] -B[2])**2 )
@@ -82,9 +84,8 @@ class UAVAgent(threading.Thread):
         dist2zone = self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),nextIntersection)
         hypo    = np.sqrt(dist2zone**2 + self.xtrackdev**2)
         speed = np.sqrt(self.ownship.vx ** 2 + self.ownship.vy ** 2 + self.ownship.vz ** 2)
-        maxdist1 = 0
 
-        A = (self.ownship.x, self.ownship.y)
+        A = (self.ownship.x, self.ownship.y,0)
         B = nextIntersection
         AB = (B[0] - A[0], B[1] - A[1])
         Vel2 = (self.ownship.vx,self.ownship.vy)
@@ -95,25 +96,16 @@ class UAVAgent(threading.Thread):
             return False
 
 
-        if len(self.trajectory) > 0:
-            for wp in self.trajectory:
-                maxdist1 += self.ComputeDistance((self.ownship.x,self.ownship.y,self.ownship.z),wp)
-        else:
-            maxdist1 = dist2zone
-
-        maxdist2 = self.xtrackdev + hypo
-
+        maxdist = self.xtrackdev + hypo
         mindist = dist2zone
-        if abs(mindist - maxdist1) < 1e-1:
-            maxdist = maxdist2
-        else:
-            maxdist = maxdist1
 
         minT    = mindist/(self.ownship.vmax-2)
         maxT    = maxdist/self.ownship.vmin
         release = minT+t
         deadline = maxT+t
-        reach   = mindist/speed + t
+        reach   = mindist/self.speed + t
+        if len(self.trajectory) > 0:
+            reach = t + self.Time2FollowTrajectory(A, self.trajectory)
         #print "Crossing Time:"
         #print minT,maxT,t,release,reach,deadline
         #print mindist
@@ -127,6 +119,7 @@ class UAVAgent(threading.Thread):
     def BroadcastCurrentPosition(self):
         msg = acState_t()
         msg.aircraftID  = self.ownship.id
+        msg.timestamp = int(time.time())
         msg.position[0] = self.ownship.x
         msg.position[1] = self.ownship.y
         msg.position[2] = self.ownship.z
@@ -190,17 +183,13 @@ class UAVAgent(threading.Thread):
             R.append(_jobData[e][0]/self.delta)
             D.append(_jobData[e][2]/self.delta + 1)
 
-        #TODO: clean out this index manipulation
-        _airplaneIds = [int(val[7])-1 for val in acid]
-
-        T, sortedJ, status = PolynomialTime(_airplaneIds, R, D)
+        T, sortedJ, status = PolynomialTime(R, D)
 
         print R,D,T
 
         for i,elem in enumerate(sortedJ):
-            #TODO: clean out this index manipulation
-            index = elem[0] + 1
-            name  = "vehicle"+str(index)
+            index = elem[0]
+            name  = acid[index]
             self.schedules[name] = T[i]*self.delta
 
         return True
@@ -247,9 +236,23 @@ class UAVAgent(threading.Thread):
         C = (AC[0] + A[0],AC[1] + A[1],0)
 
         print AC,C,B
+        self.trajectory = []
         self.trajectory.append(C)
         self.trajectory.append(B)
         return s
+
+    def Time2FollowTrajectory(self,position,trajectory):
+
+        traj = [position]  + trajectory
+        dist = 0
+        for i,element in enumerate(traj):
+            if i < len(traj)-1:
+                dist += self.ComputeDistance(traj[i],traj[i+1])
+
+        time = dist/self.speed
+        return time
+
+
 
     def FollowTrajectory(self,trajectory):
 
@@ -261,10 +264,12 @@ class UAVAgent(threading.Thread):
             return
 
         dist = self.ComputeDistance(currentPos,nextPos)
-        if dist < 2.5:
+        if dist < 5:
             trajectory.pop(0)
             if len(trajectory) > 0:
+                print "next waypoint"
                 nextPos = trajectory[0]
+                print nextPos
             else:
                 return
 
@@ -417,7 +422,7 @@ class UAVAgent(threading.Thread):
                 #self.server.clear_log()
 
                 # Go through the log and extract [r,d] and current t information.
-                self.newSchedule = self.ComputeSchedule(log)
+                self.newSchedule = self.ComputeSchedule(log[:N])
                 self.lastLogLength = 0
 
             if self.newSchedule:

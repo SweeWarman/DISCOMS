@@ -6,12 +6,14 @@ class AgentAnimation():
         self.fig = plt.figure()
         self.ax = plt.axes(xlim=(xmin, xmax), ylim=(ymin, ymax))
         self.agents = []
+        self.agentNames = []
         self.data = None
 
-    def AddAgent(self,radius,color):
+    def AddAgent(self,name,radius,color):
         agt = plt.Circle((0.0, 0.0), radius=radius, fc=color)
         self.ax.add_patch(agt)
         self.agents.append(agt)
+        self.agentNames.append(name)
 
     def AddData(self,data):
         self.data = data
@@ -24,7 +26,7 @@ class AgentAnimation():
     def animate(self,i):
         if i < self.minlen:
             for j, vehicle in enumerate(self.agents):
-                id = "vehicle" + str(j+1)
+                id = self.agentNames[j]
                 vehicle.center = (self.data[id][i][0], self.data[id][i][1])
         return self.agents
 

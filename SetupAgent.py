@@ -80,9 +80,9 @@ Visualation of agents
 if log == "True":
     print "Starting animation"
     anim = AgentAnimation(-200,-200,200,200)
-    anim.AddAgent(2.5,'r')
-    anim.AddAgent(2.5,'b')
-    anim.AddAgent(2.5,'g')
+    anim.AddAgent("vehicle1",2.5,'r')
+    anim.AddAgent("vehicle2",2.5,'b')
+    #anim.AddAgent("vehicle3",2.5,'g')
 
     anim.AddData(UAV.trafficTraj)
     anim.run()
