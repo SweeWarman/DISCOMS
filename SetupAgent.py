@@ -1,4 +1,4 @@
-import sys, time, lcm
+import sys, time, lcm, csv
 from Agent import UAVAgent
 from lcmraft.states.neutral import Neutral
 from lcmraft.servers.server import ServerDeamon
@@ -72,6 +72,13 @@ node.stop()
 UAV.join()
 node.join()
 print "Finished running program"
+
+logfile = id + '.csv'
+with open(logfile, 'wb') as csvfile:
+    spamwriter = csv.writer(csvfile, delimiter=' ',
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    for element in UAV.blacbox:
+        spamwriter.writerow(element)
 
 # Visualize results
 """

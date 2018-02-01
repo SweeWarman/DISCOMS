@@ -2,7 +2,7 @@
 
 if [ "$1" == '1' ];then
     echo "Launching  vehicle 1"
-    python SetupAgent.py "$2" -100 0 0 3 0 0 True
+    python SetupAgent.py "$2" -100 0 0 3 0 0 False
     
 elif [ "$1" == '2' ];then
     echo "Launching  vehicle 2"

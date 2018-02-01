@@ -38,6 +38,7 @@ class UAVAgent(threading.Thread):
         self.lastProcessedIndex = 0
         self.computeSent = False
         self.offsetSign = 1
+        self.blacbox = []
         #TODO: analyze relation between vmin,vmax,xtracdev
 
     def stop(self):
@@ -69,6 +70,12 @@ class UAVAgent(threading.Thread):
 
         if msg.aircraftID == "vehicle2":
             self.ownship.UpdateLog(self.trafficTraj)
+
+    def UpdateBlackBoxLog(self):
+        position = (self.ownship.x,self.ownship.y)
+        velocity = (self.ownship.vx,self.ownship.vy)
+        entry = [time.time(),self.ownship.id,self.server._state.name,len(self.server._log),position[0],position[1],velocity[0],velocity[1]]
+        self.blacbox.append(entry)
 
     def ComputeDistance(self,A,B):
         return np.sqrt((A[0] -B[0])**2 + (A[1] -B[1])**2 + (A[2] -B[2])**2 )
@@ -252,8 +259,6 @@ class UAVAgent(threading.Thread):
         time = dist/self.speed
         return time
 
-
-
     def FollowTrajectory(self,trajectory):
 
         currentPos = (self.ownship.x,self.ownship.y,self.ownship.z)
@@ -338,6 +343,7 @@ class UAVAgent(threading.Thread):
         while not self.stopped():
             t1 = time.time()
             if t1 - self.pt0 >= self.ownship.dt:
+                self.UpdateBlackBoxLog()
                 self.ownship.dt = t1 - self.pt0
                 self.pt0 = t1
                 self.FollowTrajectory(self.trajectory)
