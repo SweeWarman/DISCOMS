@@ -74,7 +74,7 @@ class UAVAgent(threading.Thread):
     def UpdateBlackBoxLog(self):
         position = (self.ownship.x,self.ownship.y)
         velocity = (self.ownship.vx,self.ownship.vy)
-        entry = [time.time(),self.ownship.id,self.server._state.name,len(self.server._log),position[0],position[1],velocity[0],velocity[1]]
+        entry = [time.time(),self.server._state.name,len(self.server._log),position[0],position[1],velocity[0],velocity[1]]
         self.blacbox.append(entry)
 
     def ComputeDistance(self,A,B):
