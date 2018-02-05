@@ -84,5 +84,3 @@ class AgentAnimation():
                                        blit=False)
 
         plt.show()
-
-

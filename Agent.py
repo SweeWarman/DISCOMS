@@ -98,7 +98,7 @@ class UAVAgent(threading.Thread):
         Vel2 = (self.ownship.vx,self.ownship.vy)
         proj = AB[0]*Vel2[0] + AB[1]*Vel2[1]
 
-        if proj < 0 and dist2zone < 10:
+        if proj < 0 and dist2zone < 3:
             #print A
             return False
 
@@ -352,6 +352,7 @@ class UAVAgent(threading.Thread):
                 self.BroadcastCurrentPosition()
 
                 if self.server._shutdown:
+                    self.server._state.name = "NEUTRAL"
                     continue
 
                 # if crossing time not available previously, or if

@@ -46,6 +46,16 @@ def FindInterpolatedValue(t0,data,t):
 
     return (xp,yp)
 
+def GetStateId(name):
+    if name == "NEUTRAL":
+        return 0
+    elif name == "FOLLOWER":
+        return 1
+    elif name == "CANDIDATE":
+        return 2
+    elif name == "LEADER":
+        return 3
+
 Data = {}
 InterpPosition= {}
 InterpVelocity={}
@@ -66,11 +76,11 @@ for name in nameList:
          Data[name]["dist2int"] = []
          for row in logreader:
              Data[name]["t"].append(float(row[0]))
-             Data[name]["state"].append(row[2])
-             Data[name]["loglen"].append(int(row[3]))
-             position = (float(row[4]),float(row[5]))
+             Data[name]["state"].append(row[1])
+             Data[name]["loglen"].append(int(row[2]))
+             position = (float(row[3]),float(row[4]))
              Data[name]["position"].append(position)
-             Data[name]["velocity"].append((float(row[6]),float(row[7])))
+             Data[name]["velocity"].append((float(row[5]),float(row[6])))
              Data[name]["dist2int"].append(ComputeDistance(position,(0,0)))
          if name == 'vehicle1':
              dataTimes = Data[name]["t"]
@@ -89,9 +99,18 @@ for name in nameList:
          InterpData[name]["position"] = InterpPosition[name]
          InterpData[name]["velocity"] = InterpVelocity[name]
 
+plt.figure(1)
 plt.plot(Data["vehicle1"]["t"],Data["vehicle1"]["dist2int"])
 plt.plot(Data["vehicle2"]["t"],Data["vehicle2"]["dist2int"])
 plt.show()
+
+plt.figure(2)
+for name in nameList:
+    stateid = [GetStateId(state) for state in Data[name]["state"]]
+    t = Data[name]["t"]
+    plt.plot(t,stateid)
+
+plt.yticks((0,1,2,3),("NEUTRAL","FOLLOWER","CANDIDATE","LEADER"))
 
 maxplayback = len(Data["vehicle1"]["t"])
 anim = AgentAnimation(-200,-200,200,200)
