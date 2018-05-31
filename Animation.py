@@ -82,5 +82,16 @@ class AgentAnimation():
                                        frames=1000,
                                        interval=150,
                                        blit=False)
+        plt.xlabel("x [m]")
+        plt.ylabel("y [m]")
+        plt.xlim([-90, 5])
+        plt.ylim([-80, 20])
+        
+
+
+        # Save animation as a movie
+        self.anim.save('animation.mp4', fps=10, 
+                  extra_args=['-vcodec', 'h264', 
+                              '-pix_fmt', 'yuv420p'])
 
         plt.show()

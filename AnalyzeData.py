@@ -13,24 +13,24 @@ def ComputeDistance(A,B):
 
 def FindIndex(t0,t):
 
-    if len(t0) == 2:
+    if len(t) == 2:
         index = 0
         return index
 
-    half = int(ceil(float(len(t0))/2))
+    half = int(ceil(float(len(t))/2))
 
-    if t0[half-1] >= t:
-        index = FindIndex(t0[:half],t)
+    if t[half-1] >= t0:
+        index = FindIndex(t0,t[:half])
     else:
-        index = half-1 + FindIndex(t0[half-1:],t)
+        index = half-1 + FindIndex(t0,t[half-1:])
 
     return index
 
 def FindInterpolatedValue(t0,data,t):
 
-    if t[0] <= t0:
+    if t0 <= t[0]:
         index = 0
-    elif t[-1] >= t0:
+    elif t0 >= t[-1]:
         index = len(t)-2
     else:
         index = FindIndex(t0,t)
@@ -62,7 +62,7 @@ InterpVelocity={}
 InterpDist2Int = {}
 InterpData = {}
 dataTimes = None
-nameList = ['vehicle1','vehicle2']
+nameList = ['vehicle1','vehicle2','vehicle3']
 for name in nameList:
     filename = name + '.csv'
     with open(filename, 'rb') as csvfile:
@@ -74,7 +74,7 @@ for name in nameList:
          Data[name]["position"] = []
          Data[name]["velocity"] = []
          Data[name]["dist2int"] = []
-         for row in logreader:
+         for i,row in enumerate(logreader):
              Data[name]["t"].append(float(row[0]))
              Data[name]["state"].append(row[1])
              Data[name]["loglen"].append(int(row[2]))
@@ -100,23 +100,35 @@ for name in nameList:
          InterpData[name]["velocity"] = InterpVelocity[name]
 
 plt.figure(1)
-plt.plot(Data["vehicle1"]["t"],Data["vehicle1"]["dist2int"])
-plt.plot(Data["vehicle2"]["t"],Data["vehicle2"]["dist2int"])
-plt.show()
+plt.plot(Data["vehicle1"]["t"],Data["vehicle1"]["dist2int"],label="vehicle1")
+plt.plot(Data["vehicle2"]["t"],Data["vehicle2"]["dist2int"],label="vehicle2")
+plt.plot(Data["vehicle3"]["t"],Data["vehicle3"]["dist2int"],label="vehicle3")
+plt.xlabel("time (s)")
+plt.ylabel("Distance to Intersection (m)")
+plt.legend()
+plt.rc('text',usetex=True)
+plt.rc('font',family='serif')
 
 plt.figure(2)
 for name in nameList:
     stateid = [GetStateId(state) for state in Data[name]["state"]]
     t = Data[name]["t"]
-    plt.plot(t,stateid)
+    plt.plot(t,stateid,label=name)
 
+plt.ylim([-1,4])
 plt.yticks((0,1,2,3),("NEUTRAL","FOLLOWER","CANDIDATE","LEADER"))
+plt.xlabel("time (s)")
+plt.ylabel("Raft state")
+plt.legend()
+plt.rc('text',usetex=True)
+plt.rc('font',family='serif')
+
 
 maxplayback = len(Data["vehicle1"]["t"])
 anim = AgentAnimation(-200,-200,200,200)
-anim.AddAgent("vehicle1",2.5,'r')
-anim.AddAgent("vehicle2",2.5,'b')
-#anim.AddAgent("vehicle3",2.5,'g')
+anim.AddAgent("vehicle1",2.5,'b')
+anim.AddAgent("vehicle2",2.5,'g')
+anim.AddAgent("vehicle3",2.5,'r')
 
 anim.AddData(InterpData,maxplayback)
 anim.run()
