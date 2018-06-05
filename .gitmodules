@@ -1,6 +1,3 @@
-[submodule "lcmraft"]
-	path = lcmraft
-	url = https://sweewarman@bitbucket.org/SweeResearch/lcmraft.git
 [submodule "RAFTLiTE"]
 	path = RAFTLiTE
 	url = https://github.com/SweeWarman/RAFTLiTE.git

@@ -39,6 +39,7 @@ class UAVAgent(threading.Thread):
         self.computeSent = False
         self.offsetSign = 1
         self.blacbox = []
+        self._atLeastOneMsgSent = False
         #TODO: analyze relation between vmin,vmax,xtracdev
 
     def stop(self):
@@ -282,7 +283,7 @@ class UAVAgent(threading.Thread):
             if element["data"][0] == 1 and count >= 2:
                 count = len(log) + 1
                 continue
-            elif element["data"][0] == EntryType.DATA.value:
+            elif element["data"][0] == 0:
                 intersectionID = element["data"][1]
                 vehicleID = element["data"][2]
                 release = element["data"][3]
@@ -313,8 +314,8 @@ class UAVAgent(threading.Thread):
                 if element["data"][0] == 1 and i > 0:
                     #print "couldn't find previous crossing time"
                     return 0
-                if element["data"][0] == 1 and element["data"][2] == self.server._name:
-                    return element["data"]
+                if element["data"][0] == 0 and np.fabs(element["data"][2] - self.ownship.id) < 1e-3:
+                    return element["data"][5]
 
         return 0
 
@@ -345,11 +346,7 @@ class UAVAgent(threading.Thread):
                     if not self.shutdownSent:
                         self.shutdownSent = True
                         if self.server._leader is not None:
-                            request = request_membership_t()
-                            request.sender = self.server._name
-                            request.receiver = self.server._leader
-                            request.request = False
-                            self.server.send_message(request)
+                            self.server.leave_network()
                             print "sent shutdown request"
                             if type(self.server._state) is Follower:
                                 print "expective response from leader"
@@ -358,15 +355,24 @@ class UAVAgent(threading.Thread):
 
                 _xtime = self.crossingTimes[nextin][1]
                 prevCrossingT = self.GetPrevCrossingTimeFromLog()
+
+                log = self.server.get_log()
+                #NOTE: hack to ensure I don't spam the server with client messages until my log gets populated
+                if self._atLeastOneMsgSent and len(log) < 1:
+                    prevCrossingT = _xtime
+
                 if abs(prevCrossingT - _xtime) > 2:
                     job = client_status_t()
+                    job.data.append(0)
                     job.data.append( nextin)
                     job.data.append( self.ownship.id)
                     job.data.append( self.crossingTimes[nextin][0])
                     job.data.append( self.crossingTimes[nextin][2])
                     job.data.append( _xtime)
+                    job.n = 6
                     if self.server._leader is not None:
-                        self.lcm.publish("CLIENT_STATUS",job.encode())
+                        self.lcm.publish(self.server._leader+"_CLIENT_STATUS",job.encode())
+                        self._atLeastOneMsgSent = True
 
 
             # if self node is leader
@@ -379,7 +385,12 @@ class UAVAgent(threading.Thread):
                 commitedlog = log[:self.server._commitIndex]
                 val = self.CheckConflicts(commitedlog,self.server._connectedServers)
                 if val is True and not self.computeSent:
-                    self.server._state.SendComputeCommand(0)
+                    job = client_status_t()
+                    job.data.append(1)
+                    job.n = 1
+                    if self.server._leader is not None:
+                        self.lcm.publish(self.server._leader+"_CLIENT_STATUS",job.encode())
+
                     self.computeSent = True
 
             N = 0

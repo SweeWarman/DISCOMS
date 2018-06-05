@@ -1,11 +1,16 @@
 import sys, time, lcm, csv
+sys.path.append("./RAFTLiTE")
+
+from RAFTLiTE.states.neutral import Neutral
+from RAFTLiTE.servers.server import ServerDeamon
+from RAFTLiTE.Communication.Comm import MsgBoard
+from RAFTLiTE.Communication.LcmServer import LcmServer
+
 from Agent import UAVAgent
-from lcmraft.states.neutral import Neutral
-from lcmraft.servers.server import ServerDeamon
 from Animation import AgentAnimation
 
 # Obtain command line arguments
-id  = sys.argv[1]
+id  = float(sys.argv[1])
 x   = float(sys.argv[2])
 y   = float(sys.argv[3])
 z   = float(sys.argv[4])
@@ -14,8 +19,8 @@ vy  = float(sys.argv[6])
 vz  = float(sys.argv[7])
 log = sys.argv[8]
 
-# Create lcm handle to publish/subscribe channels
-_lcm = lcm.LCM()
+
+print "Launching agent"
 
 # Instantiate an agent
 UAV = UAVAgent(id,[x,y,z],[vx,vy,vz])
@@ -25,27 +30,27 @@ UAV.AddIntersections(0,0,0,0)
 UAV.daemon = True
 
 # Instantiate RAFT server
+board = MsgBoard()
 state = Neutral()
-node = ServerDeamon(id,state,[],_lcm)
+node = ServerDeamon("NODE"+str(id),state,[],board)
 node.daemon = True
 
+lcm = LcmServer(node._server,board)
+lcm.daemon = True
+
 # Provide the lcm hander to the UAV to publish relevant topics
-UAV.SetLcmHandle(_lcm)
+UAV.SetLcmHandle(lcm._lcm)
 
 # Provide the RAFT server to the UAV to send updates to the RAFT leader
 UAV.SetServer(node._server)
 
 # Subscribe to the relevant LCM channels
 if log == "True":
-    _lcm.subscribe("POSITION",UAV.HandleTrafficPosition)
+    lcm._lcm.subscribe("POSITION",UAV.HandleTrafficPosition)
 
-_lcm.subscribe("HEARTBEAT",node.HandleHeartBeat)
-_lcm.subscribe("CLIENT_STATUS",node.HandleClientStatus)
-_lcm.subscribe(id + "_APPEND_ENTRIES",node.HandleAppendEntries)
-_lcm.subscribe(id + "_REQUEST_VOTE",node.HandleRequestVote)
-_lcm.subscribe(id + "_VOTE_RESPONSE",node.HandleVoteResponse)
-_lcm.subscribe(id + "_RESPONSE",node.HandleResponse)
-_lcm.subscribe(id + "_MEMBERSHIP",node.HandleMemberShip)
+
+# Start the LCM server
+lcm.start()
 
 # Start the RAFT server thread
 node.start()
@@ -61,7 +66,7 @@ t2 = time.time()
 try:
     while abs(t2 - t1) < duration:
         t2 = time.time()
-        _lcm.handle_timeout(100)
+        lcm._lcm.handle_timeout(100)
     print "Exiting lcm wait loop"
 except KeyboardInterrupt:
     print "Exiting UAV thread"

@@ -3,7 +3,7 @@ package exlcm;
 struct acState_t
 {
     int64_t timestamp;
-    string aircraftID;
+    double aircraftID;
     double position[3];
     double velocity[3];
     double orientation[3];
