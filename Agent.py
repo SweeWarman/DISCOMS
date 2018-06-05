@@ -2,10 +2,10 @@ import numpy as np
 import threading
 from exlcm import acState_t,jobprop_t
 from PolynomialTime import PolynomialTime
-from lcmraft.states.leader import Leader
-from lcmraft.states.follower import Follower
-from lcmraft.states.state import EntryType
-from lcmraft.LcmRaftMessages import client_status_t,request_membership_t
+from RAFTLiTE.states.leader import Leader
+from RAFTLiTE.states.follower import Follower
+from RAFTLiTE.states.state import EntryType
+from RAFTLiTE.Communication.LcmRaftMessages import client_status_t,request_membership_t
 from Vehicle import Vehicle
 import time
 
@@ -68,6 +68,7 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
+        #TODO: check if you really need this log update
         if msg.aircraftID == "vehicle2":
             self.ownship.UpdateLog(self.trafficTraj)
 
@@ -99,9 +100,7 @@ class UAVAgent(threading.Thread):
         proj = AB[0]*Vel2[0] + AB[1]*Vel2[1]
 
         if proj < 0 and dist2zone < 3:
-            #print A
             return False
-
 
         maxdist = self.xtrackdev + hypo
         mindist = dist2zone
@@ -113,9 +112,7 @@ class UAVAgent(threading.Thread):
         reach   = mindist/self.speed + t
         if len(self.trajectory) > 0:
             reach = t + self.Time2FollowTrajectory(A, self.trajectory)
-        #print "Crossing Time:"
-        #print minT,maxT,t,release,reach,deadline
-        #print mindist
+
         if id not in self.crossingTimes.keys():
             self.crossingTimes[id] = {}
 
@@ -156,15 +153,15 @@ class UAVAgent(threading.Thread):
         while(count <= len(log)):
             element = log[-count]
             count += 1
-            if element["entryType"] == EntryType.COMMAND.value and count > 2:
+            if element["data"][0] == 1 and count > 2:
                 count = len(log) + 1
                 continue
-            elif element["entryType"] == EntryType.DATA.value:
-                intersectionID = element["intersectionID"]
-                vehicleID = element["vehicleID"]
-                release = element["entryTime"]
-                deadline = element["exitTime"]
-                currentTime = element["crossingTime"]
+            elif element["data"][0] == 1:
+                intersectionID = element["data"][1]
+                vehicleID = element["data"][2]
+                release = element["data"][3]
+                deadline = element["data"][4]
+                currentTime = element["data"][5]
                 _jobData[vehicleID] = [release, currentTime, deadline]
                 if vehicleID == self.server._name:
                     computeSchedule = True
@@ -172,15 +169,6 @@ class UAVAgent(threading.Thread):
         if not computeSchedule:
             print "Ownship not found in log"
             return False
-
-        # for element in log:
-        #     if element["entryType"] == EntryType.DATA.value:
-        #         intersectionID = element["intersectionID"]
-        #         vehicleID = element["vehicleID"]
-        #         release = element["entryTime"]
-        #         deadline = element["exitTime"]
-        #         currentTime = element["crossingTime"]
-        #         _jobData[vehicleID] = [release,currentTime,deadline]
 
         # ids of all aircraft attempting to cross intersection id
         acid = [i for i in _jobData.keys()]
@@ -291,25 +279,17 @@ class UAVAgent(threading.Thread):
         while (count <= len(log)):
             element = log[-count]
             count += 1
-            if element["entryType"] == EntryType.COMMAND.value and count >= 2:
+            if element["data"][0] == 1 and count >= 2:
                 count = len(log) + 1
                 continue
-            elif element["entryType"] == EntryType.DATA.value:
-                intersectionID = element["intersectionID"]
-                vehicleID = element["vehicleID"]
-                release = element["entryTime"]
-                deadline = element["exitTime"]
-                currentTime = element["crossingTime"]
+            elif element["data"][0] == EntryType.DATA.value:
+                intersectionID = element["data"][1]
+                vehicleID = element["data"][2]
+                release = element["data"][3]
+                deadline = element["data"][4]
+                currentTime = element["data"][5]
                 entryTime[vehicleID] = currentTime
 
-        # for element in log:
-        #     if element["entryType"] == EntryType.DATA.value:
-        #         intersectionID = element["intersectionID"]
-        #         vehicleID = element["vehicleID"]
-        #         release = element["entryTime"]
-        #         deadline = element["exitTime"]
-        #         currentTime = element["crossingTime"]
-        #         entryTime[vehicleID] = currentTime
         if len(entryTime.keys()) < len(connectedServers):
             # Not account for conflicts if all data is not available
             return False
@@ -330,11 +310,11 @@ class UAVAgent(threading.Thread):
         log.reverse()
         if len(log) > 0:
             for i,element in enumerate(log):
-                if element["entryType"] == EntryType.COMMAND.value and i > 0:
+                if element["data"][0] == 1 and i > 0:
                     #print "couldn't find previous crossing time"
                     return 0
-                if element["entryType"] == EntryType.DATA.value and element["vehicleID"] == self.server._name:
-                    return element["crossingTime"]
+                if element["data"][0] == 1 and element["data"][2] == self.server._name:
+                    return element["data"]
 
         return 0
 
@@ -380,12 +360,11 @@ class UAVAgent(threading.Thread):
                 prevCrossingT = self.GetPrevCrossingTimeFromLog()
                 if abs(prevCrossingT - _xtime) > 2:
                     job = client_status_t()
-                    job.intersectionID = nextin
-                    job.entryTime = self.crossingTimes[nextin][0]
-                    job.exitTime = self.crossingTimes[nextin][2]
-                    job.crossingTime = _xtime
-                    job.vehicleID = self.ownship.id
-
+                    job.data.append( nextin)
+                    job.data.append( self.ownship.id)
+                    job.data.append( self.crossingTimes[nextin][0])
+                    job.data.append( self.crossingTimes[nextin][2])
+                    job.data.append( _xtime)
                     if self.server._leader is not None:
                         self.lcm.publish("CLIENT_STATUS",job.encode())
 
@@ -417,7 +396,7 @@ class UAVAgent(threading.Thread):
                     self.lastProcessedIndex = nextIndex2Process
                     entry = log[nextIndex2Process - 1]
 
-                    if entry["entryType"] == EntryType.COMMAND.value:
+                    if entry["data"] == 1:
                         executeCommand = True
                         self.computeSent = False
                         break
