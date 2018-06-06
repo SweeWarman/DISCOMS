@@ -7,7 +7,6 @@ from RAFTLiTE.Communication.Comm import MsgBoard
 from RAFTLiTE.Communication.LcmServer import LcmServer
 
 from Agent import UAVAgent
-from Animation import AgentAnimation
 
 # Obtain command line arguments
 id  = int(sys.argv[1])
@@ -18,9 +17,6 @@ vx  = float(sys.argv[5])
 vy  = float(sys.argv[6])
 vz  = float(sys.argv[7])
 log = sys.argv[8]
-
-
-print "Launching agent"
 
 # Instantiate an agent
 UAV = UAVAgent(id,[x,y,z],[vx,vy,vz])
@@ -48,7 +44,6 @@ UAV.SetServer(node._server)
 if log == "True":
     lcm._lcm.subscribe("POSITION",UAV.HandleTrafficPosition)
 
-
 # Start the LCM server
 lcm.start()
 
@@ -59,7 +54,6 @@ node.start()
 UAV.start()
 
 # Run the UAV only for a specified duration
-
 duration = 45
 t1 = time.time()
 t2 = time.time()
@@ -78,6 +72,8 @@ UAV.join()
 node.join()
 print "Finished running program"
 
+
+# Write log to file for visualization and analysis
 logfile = "NODE"+str(id) + '.csv'
 with open(logfile, 'wb') as csvfile:
     spamwriter = csv.writer(csvfile, delimiter=' ',
@@ -85,16 +81,3 @@ with open(logfile, 'wb') as csvfile:
     for element in UAV.blacbox:
         spamwriter.writerow(element)
 
-# Visualize results
-"""
-Visualation of agents
-"""
-#if log == "True":
-#    print "Starting animation"
-#    anim = AgentAnimation(-200,-200,200,200)
-#    anim.AddAgent("vehicle1",2.5,'r')
-#    anim.AddAgent("vehicle2",2.5,'b')
-#    #anim.AddAgent("vehicle3",2.5,'g')
-#
-#    anim.AddData(UAV.trafficTraj)
-#    anim.run()

@@ -69,10 +69,6 @@ class UAVAgent(threading.Thread):
             self.trafficTraj[msg.aircraftID] = []
             self.trafficTraj[msg.aircraftID].append(msg.position)
 
-        #TODO: check if you really need this log update
-        if msg.aircraftID == "vehicle2":
-            self.ownship.UpdateLog(self.trafficTraj)
-
     def UpdateBlackBoxLog(self):
         position = (self.ownship.x,self.ownship.y)
         velocity = (self.ownship.vx,self.ownship.vy)
@@ -221,20 +217,20 @@ class UAVAgent(threading.Thread):
         B  = self.intersections[id]
         AB = (B[0] - A[0], B[1] - A[1])
         distAB = np.sqrt(AB[0] ** 2 + AB[1] ** 2)
-        print "Schedule T:" + str(T)
-        print "Current Time:" + str(time.time())
         T = T - time.time()
         (x,s) = self.ComputeSpeed(distAB,T)
-        print x,s
-
         fac = x/distAB
         AC = [AB[1]*fac,-AB[0]*fac]
         C = (AC[0] + A[0],AC[1] + A[1],0)
 
-        print AC,C,B
         self.trajectory = []
         self.trajectory.append(C)
         self.trajectory.append(B)
+
+        #print "Schedule T:" + str(T)
+        #print "Current Time:" + str(time.time())
+        #print x,s
+        #print AC,C,B
         return s
 
     def Time2FollowTrajectory(self,position,trajectory):
@@ -261,9 +257,9 @@ class UAVAgent(threading.Thread):
         if dist < 5:
             trajectory.pop(0)
             if len(trajectory) > 0:
-                print "next waypoint"
                 nextPos = trajectory[0]
-                print nextPos
+                #print "next waypoint"
+                #print nextPos
             else:
                 return
 
@@ -357,10 +353,12 @@ class UAVAgent(threading.Thread):
                 prevCrossingT = self.GetPrevCrossingTimeFromLog()
 
                 log = self.server.get_log()
+
                 #NOTE: hack to ensure I don't spam the server with client messages until my log gets populated
                 if self._atLeastOneMsgSent and len(log) < 1:
                     prevCrossingT = _xtime
 
+                # Don't sent entries to leader if difference between old and new crossing times are "negligible"
                 if abs(prevCrossingT - _xtime) > 2:
                     job = client_status_t()
                     job.data.append(0)
@@ -399,6 +397,7 @@ class UAVAgent(threading.Thread):
             else:
                 N = len(log)
 
+            # Check the log for the compute command and compute a new schedule
             executeCommand = False
             entry = None
             for i in range(self.lastProcessedIndex,N):
@@ -416,8 +415,6 @@ class UAVAgent(threading.Thread):
                 print entry
                 print "executing command entry"
                 # After executing command, clear logs.
-                #self.server.clear_log()
-
                 # Go through the log and extract [r,d] and current t information.
                 self.newSchedule = self.ComputeSchedule(log[:N])
                 self.lastLogLength = 0
