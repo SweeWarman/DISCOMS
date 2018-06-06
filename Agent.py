@@ -1,6 +1,6 @@
 import numpy as np
 import threading
-from exlcm import acState_t,jobprop_t
+from VehicleMsgs import acState_t
 from PolynomialTime import PolynomialTime
 from RAFTLiTE.states.leader import Leader
 from RAFTLiTE.states.follower import Follower
