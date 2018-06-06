@@ -154,17 +154,17 @@ class UAVAgent(threading.Thread):
         while(count <= len(log)):
             element = log[-count]
             count += 1
-            if element["data"][0] == 1 and count > 2:
+            if int(element["data"][0]) == 1 and count > 2:
                 count = len(log) + 1
                 continue
-            elif element["data"][0] == 1:
+            elif int(element["data"][0]) == 0:
                 intersectionID = element["data"][1]
-                vehicleID = element["data"][2]
+                vehicleID = int(element["data"][2])
                 release = element["data"][3]
                 deadline = element["data"][4]
                 currentTime = element["data"][5]
                 _jobData[vehicleID] = [release, currentTime, deadline]
-                if vehicleID == self.server._name:
+                if vehicleID == self.ownship.id:
                     computeSchedule = True
 
         if not computeSchedule:
@@ -285,7 +285,7 @@ class UAVAgent(threading.Thread):
                 continue
             elif element["data"][0] == 0:
                 intersectionID = element["data"][1]
-                vehicleID = element["data"][2]
+                vehicleID = int(element["data"][2])
                 release = element["data"][3]
                 deadline = element["data"][4]
                 currentTime = element["data"][5]
@@ -314,7 +314,7 @@ class UAVAgent(threading.Thread):
                 if element["data"][0] == 1 and i > 0:
                     #print "couldn't find previous crossing time"
                     return 0
-                if element["data"][0] == 0 and np.fabs(element["data"][2] - self.ownship.id) < 1e-3:
+                if element["data"][0] == 0 and int(element["data"][2]) == self.ownship.id:
                     return element["data"][5]
 
         return 0
@@ -365,7 +365,7 @@ class UAVAgent(threading.Thread):
                     job = client_status_t()
                     job.data.append(0)
                     job.data.append( nextin)
-                    job.data.append( self.ownship.id)
+                    job.data.append( float(self.ownship.id))
                     job.data.append( self.crossingTimes[nextin][0])
                     job.data.append( self.crossingTimes[nextin][2])
                     job.data.append( _xtime)
@@ -407,7 +407,7 @@ class UAVAgent(threading.Thread):
                     self.lastProcessedIndex = nextIndex2Process
                     entry = log[nextIndex2Process - 1]
 
-                    if entry["data"] == 1:
+                    if int(entry["data"][0]) == 1:
                         executeCommand = True
                         self.computeSent = False
                         break

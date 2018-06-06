@@ -10,7 +10,7 @@ from Agent import UAVAgent
 from Animation import AgentAnimation
 
 # Obtain command line arguments
-id  = float(sys.argv[1])
+id  = int(sys.argv[1])
 x   = float(sys.argv[2])
 y   = float(sys.argv[3])
 z   = float(sys.argv[4])
@@ -78,7 +78,7 @@ UAV.join()
 node.join()
 print "Finished running program"
 
-logfile = id + '.csv'
+logfile = "NODE"+str(id) + '.csv'
 with open(logfile, 'wb') as csvfile:
     spamwriter = csv.writer(csvfile, delimiter=' ',
                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -89,12 +89,12 @@ with open(logfile, 'wb') as csvfile:
 """
 Visualation of agents
 """
-if log == "True":
-    print "Starting animation"
-    anim = AgentAnimation(-200,-200,200,200)
-    anim.AddAgent("vehicle1",2.5,'r')
-    anim.AddAgent("vehicle2",2.5,'b')
-    #anim.AddAgent("vehicle3",2.5,'g')
-
-    anim.AddData(UAV.trafficTraj)
-    anim.run()
+#if log == "True":
+#    print "Starting animation"
+#    anim = AgentAnimation(-200,-200,200,200)
+#    anim.AddAgent("vehicle1",2.5,'r')
+#    anim.AddAgent("vehicle2",2.5,'b')
+#    #anim.AddAgent("vehicle3",2.5,'g')
+#
+#    anim.AddData(UAV.trafficTraj)
+#    anim.run()

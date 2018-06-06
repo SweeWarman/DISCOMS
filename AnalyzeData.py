@@ -2,6 +2,7 @@ import csv
 from math import sqrt, ceil
 from Animation import AgentAnimation
 from matplotlib import pyplot as plt
+import sys
 
 def Interpolate(t1,x1,y1,t2,x2,y2,t):
     x = x1 + (x2-x1)/(t2-t1) * (t-t1)
@@ -56,13 +57,19 @@ def GetStateId(name):
     elif name == "LEADER":
         return 3
 
+numVehicles = int(sys.argv[1])
+
 Data = {}
 InterpPosition= {}
 InterpVelocity={}
 InterpDist2Int = {}
 InterpData = {}
 dataTimes = None
-nameList = ['vehicle1','vehicle2','vehicle3']
+nameList = []
+
+for i in range(1,numVehicles+1):
+    nameList.append("NODE"+str(i))
+
 for name in nameList:
     filename = name + '.csv'
     with open(filename, 'rb') as csvfile:
@@ -82,7 +89,7 @@ for name in nameList:
              Data[name]["position"].append(position)
              Data[name]["velocity"].append((float(row[5]),float(row[6])))
              Data[name]["dist2int"].append(ComputeDistance(position,(0,0)))
-         if name == 'vehicle1':
+         if name == 'NODE1':
              dataTimes = Data[name]["t"]
              InterpPosition[name] = Data[name]["position"]
              InterpVelocity[name] = Data[name]["velocity"]
@@ -100,9 +107,9 @@ for name in nameList:
          InterpData[name]["velocity"] = InterpVelocity[name]
 
 plt.figure(1)
-plt.plot(Data["vehicle1"]["t"],Data["vehicle1"]["dist2int"],label="vehicle1")
-plt.plot(Data["vehicle2"]["t"],Data["vehicle2"]["dist2int"],label="vehicle2")
-plt.plot(Data["vehicle3"]["t"],Data["vehicle3"]["dist2int"],label="vehicle3")
+for i in range(1,numVehicles+1):
+    name = "NODE"+str(i)
+    plt.plot(Data[name]["t"],Data[name]["dist2int"],label=name)
 plt.xlabel("time (s)")
 plt.ylabel("Distance to Intersection (m)")
 plt.legend()
@@ -124,20 +131,12 @@ plt.rc('text',usetex=True)
 plt.rc('font',family='serif')
 
 
-maxplayback = len(Data["vehicle1"]["t"])
+maxplayback = len(Data["NODE1"]["t"])
 anim = AgentAnimation(-200,-200,200,200)
-anim.AddAgent("vehicle1",2.5,'b')
-anim.AddAgent("vehicle2",2.5,'g')
-anim.AddAgent("vehicle3",2.5,'r')
+color = ['b','g','r','m','y','k']
+for i in range(1,numVehicles+1):
+    name = "NODE"+str(i)
+    anim.AddAgent(name,2.5,color[i-1])
 
 anim.AddData(InterpData,maxplayback)
 anim.run()
-
-
-
-
-
-
-
-
-
