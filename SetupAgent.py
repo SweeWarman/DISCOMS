@@ -1,28 +1,35 @@
 import sys, time, lcm, csv
 sys.path.append("./RAFTLiTE")
-
 from RAFTLiTE.states.neutral import Neutral
 from RAFTLiTE.servers.server import ServerDeamon
 from RAFTLiTE.Communication.Comm import MsgBoard
 from RAFTLiTE.Communication.LcmServer import LcmServer
 
+import numpy as np
 from Agent import UAVAgent
+
 
 # Obtain command line arguments
 id  = int(sys.argv[1])
 x   = float(sys.argv[2])
 y   = float(sys.argv[3])
-z   = float(sys.argv[4])
-vx  = float(sys.argv[5])
-vy  = float(sys.argv[6])
-vz  = float(sys.argv[7])
-log = sys.argv[8]
+speed = float(sys.argv[4])
+log = sys.argv[5]
+
+#Intersection position
+id0 = 0
+x0  = 0
+y0  = 0
+
+# Construct velocity components
+vx  = speed*np.cos(x0 - x)
+vy  = speed*np.sin(y0 - y)
 
 # Instantiate an agent
-UAV = UAVAgent(id,[x,y,z],[vx,vy,vz])
+UAV = UAVAgent(id,[x,y,0],[vx,vy,0])
 
 # Add an intersection for the agent
-UAV.AddIntersections(0,0,0,0)
+UAV.AddIntersections(id0,x0,y0,0)
 UAV.daemon = True
 
 # Instantiate RAFT server
