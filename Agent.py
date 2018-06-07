@@ -39,7 +39,6 @@ class UAVAgent(threading.Thread):
         self.computeSent = False
         self.offsetSign = 1
         self.blacbox = []
-        self._atLeastOneMsgSent = False
         #TODO: analyze relation between vmin,vmax,xtracdev
 
     def stop(self):
@@ -328,6 +327,14 @@ class UAVAgent(threading.Thread):
                 self.ownship.dt = 0.1
                 self.BroadcastCurrentPosition()
 
+
+                # Wait for a second here so that we give enough time for the logs to be populated
+                if t1 - self.bt0 >= 1:
+                    self.bt0 = t1
+                else:
+                    continue
+
+
                 if self.server._shutdown:
                     self.server._state.name = "NEUTRAL"
                     continue
@@ -354,10 +361,6 @@ class UAVAgent(threading.Thread):
 
                 log = self.server.get_log()
 
-                #NOTE: hack to ensure I don't spam the server with client messages until my log gets populated
-                if self._atLeastOneMsgSent and len(log) < 1:
-                    prevCrossingT = _xtime
-
                 # Don't sent entries to leader if difference between old and new crossing times are "negligible"
                 if abs(prevCrossingT - _xtime) > 2:
                     job = client_status_t()
@@ -370,7 +373,6 @@ class UAVAgent(threading.Thread):
                     job.n = 6
                     if self.server._leader is not None:
                         self.lcm.publish(self.server._leader+"_CLIENT_STATUS",job.encode())
-                        self._atLeastOneMsgSent = True
 
 
             # if self node is leader
@@ -412,7 +414,6 @@ class UAVAgent(threading.Thread):
                         break
 
             if executeCommand:
-                print entry
                 print "executing command entry"
                 # After executing command, clear logs.
                 # Go through the log and extract [r,d] and current t information.
