@@ -10,6 +10,10 @@ class AgentAnimation():
         self.agentNames = []
         self.data = None
 
+        plt.xlabel("x [m]")
+        plt.ylabel("y [m]")
+ 
+
     def AddAgent(self,name,radius,color):
         #agt = plt.Circle((0.0, 0.0), radius=radius, fc=color)
         agt = self.GetTriangle((0.0,0,0),(1.0,0.0),color)
@@ -82,13 +86,7 @@ class AgentAnimation():
                                        frames=1000,
                                        interval=150,
                                        blit=False)
-        plt.xlabel("x [m]")
-        plt.ylabel("y [m]")
-        plt.xlim([-90, 5])
-        plt.ylim([-80, 20])
         
-
-
         # Save animation as a movie
         self.anim.save('animation.mp4', fps=10, 
                   extra_args=['-vcodec', 'h264', 

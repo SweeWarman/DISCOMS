@@ -132,7 +132,7 @@ plt.rc('font',family='serif')
 
 
 maxplayback = len(Data["NODE1"]["t"])
-anim = AgentAnimation(-200,-200,200,200)
+anim = AgentAnimation(-110,-110,30,30)
 color = ['b','g','r','m','y','k']
 for i in range(1,numVehicles+1):
     name = "NODE"+str(i)
