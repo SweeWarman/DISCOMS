@@ -79,7 +79,6 @@ def PolynomialTime(R,D):
     ScheduledJobs = []
     Rc = R[:]
     T = [0 for i in range(n)]
-    print T
     for i in range(n):
         rmin = min([r[1] for r in sortedJ if r[0] not in ScheduledJobs])
         arg_rmin = np.argmin(Rc)
@@ -90,7 +89,6 @@ def PolynomialTime(R,D):
 
         minDJob = LeastDeadlineAtT(sortedJ,t,ScheduledJobs)
         j = minDJob[0]
-        print j
         T[j] = t
         t = t+1
         ScheduledJobs.append(j)
